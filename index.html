@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TABU-AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *{
+            scrollbar-width: none;
+        }
+        body{
+            height: 100vh;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        .typing-indicator span {
+            animation: pulse 1s infinite;
+        }
+        .message-appear {
+            animation: messageAppear 0.3s ease-out;
+        }
+        @keyframes messageAppear {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .footer{
+            
+            width: 100%;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen ">
+    <div class="max-w-6xl mx-auto px-4 ">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8">
+            <div class="flex items-center space-x-4 ">
+                <div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+                    <i class="fas fa-brain text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold gradient-text">TABU AI</h1>
+                    <p class="text-gray-500 text-sm">AI-Assistant</p>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <!-- <button onclick="showModal()"  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Settings</button> -->
+                <button onclick="clearChat()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Clear Chat</button>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+            <div id="chatContainer" class="p-6 h-96 overflow-y-auto">
+                <div class="message-appear flex items-start mb-4">
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                        <p>HELLO! how can i assist you?</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="border-t border-gray-200 p-4 bg-gray-50">
+                <form id="messageForm" class="flex flex-col space-y-2" onsubmit="sendMessage(event)">
+                    <div class="flex items-center space-x-2">
+                        <input id="messageInput" type="text" placeholder="Type your message..." 
+                               class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Attach button triggers attach menu (choose image or document) -->
+                        <button type="button" id="attachBtn" onclick="showAttachMenu(event)" title="Attach file"
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+
+                        <!-- Hidden file input for images/docs; accept will be set dynamically -->
+                        <input id="fileInput" type="file" accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
+                               onchange="handleFileInputChange(event)" class="hidden">
+                    </div>
+
+                    <!-- Attach menu (hidden, shown when paperclip clicked) -->
+                    <div id="attachMenu" class="hidden absolute z-50 bg-white shadow rounded-md py-2 w-44">
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100" onclick="chooseAttachType('image')">
+                            <i class="fas fa-image mr-2 text-gray-600"></i> Upload Image
+                        </button>
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100" onclick="chooseAttachType('document')">
+                            <i class="fas fa-file-alt mr-2 text-gray-600"></i> Upload Document
+                        </button>
+                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100" onclick="hideAttachMenu()">
+                            Cancel
+                        </button>
+                    </div>
+
+                    <!-- Composer file preview (shows selected file before sending) -->
+                    <div id="filePreview" class="pl-2"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Settings</h2>
+                    <button onclick="hideModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label for="maxTokens" class="block text-sm font-medium mb-1">Max Tokens</label>
+                        <!-- Increased default and max to allow very large generations -->
+                        <input type="number" id="maxTokens" name="maxTokens" value="20000" min="50" max="300000"
+                               title="Maximum tokens to allow in model generation" placeholder="e.g. 20000"
+                               aria-label="Max Tokens" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    </div>
+                    <div>
+                        <label for="temperature" class="block text-sm font-medium mb-1">Temperature</label>
+                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7"
+                               class="w-full" title="Temperature" aria-label="Temperature slider">
+                        <span id="tempValue" class="text-sm text-gray-600">0.7</span>
+                    </div>
+
+                    <!-- Memory toggle: enable/disable using local chat history as context -->
+                    <div>
+                        <label class="inline-flex items-center space-x-2">
+                            <input id="memoryEnabled" type="checkbox" checked class="rounded border-gray-300">
+                            <span class="text-sm">Enable local chat memory (use history as context)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="footer min-h-2"><h1>	&#169;AI BY SHUBH-DEV</h1></footer>
+    </div>
+
+
+    <script>
+        // API Configuration
+        // Insert your API key directly here (not visible on screen)
+        const API_KEY = 'AIzaSyD7PLy72cCmrd7hFcKAuj9jB2m8jYCVKLQ';
+        const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+        function showModal() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function clearChat() {
+            document.getElementById('chatContainer').innerHTML = '';
+            addMessage('assistant', "Chat cleared! Ready for new messages.");
+        }
+
+        // Escape HTML for safe innerHTML insertion
+        function escapeHtml(str = '') {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /* ----------------------------
+           Code block extraction helpers
+           - extractCodeBlocks: returns all triple-backtick blocks found
+           - extractFirstCodeBlock: convenience for older callers
+        ---------------------------- */
+        function extractCodeBlocks(text = '') {
+            const blocks = [];
+            // matchAll is non-stateful and returns all code fences
+            const regex = /```([a-zA-Z0-9-]*)\n([\s\S]*?)```/g;
+            for (const m of text.matchAll(regex)) {
+                blocks.push({ lang: m[1] || 'code', code: m[2] });
+            }
+            return blocks;
+        }
+        function extractFirstCodeBlock(text = '') {
+            const blocks = extractCodeBlocks(text);
+            return blocks.length ? blocks[0] : null;
+        }
+
+        // Added: compatibility helper used elsewhere (avoid undefined function errors)
+        function extractCodeBlock(text = '') {
+            // keep API of previous code: return single {code, lang} or null
+            return extractFirstCodeBlock(text);
+        }
+
+        /* ----------------------------
+           addMessage now supports:
+           - plain text
+           - single code string (isCode=true + codeLang)
+           - content that itself contains multiple triple-backtick blocks:
+             these will be split into separate code cards (HTML/JS/CSS, etc.)
+        ---------------------------- */
+        function addMessage(role, content, isCode = false, codeLang = '') {
+            const chatContainer = document.getElementById('chatContainer');
+
+            // Helper to render one code card
+            function appendCodeCard(role, code, lang) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message-appear flex items-start mb-4';
+                if (role === 'user') {
+                    messageDiv.innerHTML = `
+                      <div class="ml-auto bg-gray-900 p-3 text-white rounded-xl rounded-tr-none max-w-3xl w-full overflow-x-auto">
+                        <div class="font-medium text-gray-300 mb-1">You ${lang ? `<span class="text-xs text-gray-500">[${escapeHtml(lang)}]</span>` : ''}</div>
+                        <pre class="text-green-200 mt-1 text-sm whitespace-pre overflow-x-auto rounded-lg p-3" style="font-family: 'Fira Mono','Consolas',monospace; line-height:1.4; background:#0b0b0b;">${escapeHtml(code)}</pre>
+                      </div>
+                    `;
+                } else {
+                    messageDiv.innerHTML = `
+                      <div class="bg-black p-3 text-white rounded-xl rounded-tl-none max-w-3xl w-full overflow-x-auto">
+                        <div class="font-medium text-green-600 flex justify-between items-center">
+                          <div>TABU AI ${lang ? `<span class="text-xs text-gray-300">LANGUAGE-[${escapeHtml(lang)}]</span>` : ''}</div>
+                          <div class="space-x-2">
+                            <button class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded" onclick="annotateCodeFromElement(this)" data-lang="${escapeHtml(lang)}">Add Comments</button>
+                            <button class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded" onclick="copyCodeFromElement(this)">Copy</button>
+                          </div>
+                        </div>
+                        <pre class="text-green-200 mt-4 text-sm whitespace-pre overflow-x-auto rounded-lg p-3" style="font-family: 'Fira Mono','Consolas',monospace; line-height:1.4; background:#18181b;">${escapeHtml(code)}</pre>
+                      </div>
+                    `;
+                }
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            // If content already contains triple-backtick code blocks, split and render each separately
+            if (isCode) {
+                const blocks = extractCodeBlocks(content);
+                if (blocks.length) {
+                    // Render each code block separately (preserves language separation)
+                    for (const b of blocks) {
+                        appendCodeCard(role, b.code, b.lang);
+                    }
+                    return;
+                }
+
+                // If no explicit fences but caller provided isCode and a language -> render single card
+                appendCodeCard(role, content, codeLang);
+                return;
+            }
+
+            // If not code, render text normally
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-appear flex items-start mb-4';
+            if (role === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="ml-auto bg-gray-100 p-3 rounded-xl rounded-tr-none max-w-3xl">
+                        <div class="font-medium text-gray-500 mb-1">You</div>
+                        <p>${escapeHtml(content)}</p>
+                    </div>
+                `;
+            } else {
+                const lines = String(content).split('\n').filter(line => line.trim() !== '');
+                const formatted = lines.map(line => {
+                    if (/^\d+\./.test(line.trim())) {
+                        return `<div class="mb-1"><span class="font-semibold">${escapeHtml(line.trim().slice(0, line.indexOf('.') + 1))}</span> ${escapeHtml(line.trim().slice(line.indexOf('.') + 1).trim())}</div>`;
+                    }
+                    return `<div class="mb-1">${escapeHtml(line)}</div>`;
+                }).join('');
+                messageDiv.innerHTML = `
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1 flex flex-col">TABU AI</div>
+                        ${formatted}
+                    </div>
+                `;
+            }
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Update annotateCodeViaAPI to use extractFirstCodeBlock (non-global)
+        async function annotateCodeViaAPI(code, lang = '') {
+            const languageNote = lang ? `${lang} ` : '';
+            const systemPrompt = `You are an assistant that adds clear, concise inline comments to code. Return ONLY the commented code inside triple backticks. Keep comments idiomatic for the language (${languageNote.trim()}).`;
+            const userContent = `${systemPrompt}\n\nPlease add inline comments (brief, helpful) to this code and return only the commented code in a triple-backtick block:\n\`\`\`${lang}\n${code}\n\`\`\``;
+
+            const apiUrl = `${API_URL}?key=${API_KEY}`;
+            const payload = {
+                contents: [{ parts: [{ text: userContent }] }],
+                generationConfig: { maxOutputTokens: 1024, temperature: 0.2 }
+            };
+
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                console.log('Annotate API raw response:', data);
+                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const codeObj = extractFirstCodeBlock(aiText);
+                if (codeObj) return codeObj.code;
+                return aiText;
+            } catch (err) {
+                console.error('Annotate API Error:', err);
+                return `// Error annotating code: ${err.message}\n${code}`;
+            }
+        }
+
+        // Added: handler to request annotated code for a specific message card
+        async function annotateCodeFromElement(btn) {
+            try {
+                btn.disabled = true;
+                const lang = btn.getAttribute('data-lang') || '';
+                const messageCard = btn.closest('.message-appear');
+                if (!messageCard) { btn.disabled = false; return; }
+                const pre = messageCard.querySelector('pre');
+                if (!pre) { btn.disabled = false; return; }
+                const originalCode = pre.textContent || '';
+
+                // show loading text while calling API
+                pre.textContent = '...adding comments, please wait...';
+
+                const commented = await annotateCodeViaAPI(originalCode, lang);
+
+                // place returned commented code (use textContent to avoid HTML injection)
+                pre.textContent = commented;
+                btn.disabled = false;
+            } catch (err) {
+                console.error('annotateCodeFromElement error', err);
+                btn.disabled = false;
+            }
+        }
+
+        // Added: copy code button handler
+        function copyCodeFromElement(btn) {
+            try {
+                const messageCard = btn.closest('.message-appear');
+                if (!messageCard) return;
+                const pre = messageCard.querySelector('pre');
+                if (!pre) return;
+                const codeText = pre.textContent || '';
+                navigator.clipboard.writeText(codeText).then(() => {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = 'Copied';
+                    setTimeout(() => btn.innerHTML = orig, 1200);
+                }).catch(err => {
+                    console.error('Copy failed', err);
+                });
+            } catch (err) {
+                console.error('copyCodeFromElement error', err);
+            }
+        }
+
+        /* ==============================
+           Local chat memory (persistent)
+           - Saves recent assistant/user messages to localStorage
+           - buildPromptWithMemory() prepends recent memory to user prompts
+           - Does NOT save very large items (images/data-URLs) to avoid token bloat
+           ============================== */
+        const MEMORY_KEY = 'tabuai_chat_memory_v1';
+        const MEMORY_MAX_ENTRIES = 300;        // keep last N small to control size
+        const MEMORY_MAX_CONTENT_CHARS = 4000; // don't persist very large contents (images, huge files)
+        
+        // Load memory array (safely)
+        function loadMemory() {
+            try {
+                return JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+        
+        // Save a single memory entry (role: 'user'|'assistant', content string)
+        function saveMemoryEntry(role, content, isCode = false) {
+            // Only save if memory is enabled in UI
+            try {
+                if (!document.getElementById('memoryEnabled')?.checked) return;
+            } catch { /* ignore */ }
+            if (!content) return;
+            // skip saving obvious ephemeral placeholders and huge payloads
+            const lower = String(content).toLowerCase();
+            if (lower.includes('⏳ processing') || lower.includes('chat cleared') || lower.includes('...adding comments')) return;
+            if (content.includes('DATA_URL_START') || content.length > MEMORY_MAX_CONTENT_CHARS) return;
+        
+            const mem = loadMemory();
+            mem.push({ role, content, isCode: !!isCode, ts: Date.now() });
+            // trim oldest entries
+            while (mem.length > MEMORY_MAX_ENTRIES) mem.shift();
+            try {
+                localStorage.setItem(MEMORY_KEY, JSON.stringify(mem));
+            } catch (e) {
+                console.warn('Failed to save memory:', e);
+            }
+        }
+        
+        // Clear persistent memory on demand
+        function clearMemory() {
+            localStorage.removeItem(MEMORY_KEY);
+            // small UI feedback (do not automatically save this feedback)
+            addMessage('assistant', 'Memory cleared.', false, '');
+        }
+        
+        // Build a single prompt by prepending recent memory entries (oldest->newest)
+        // maxChars controls how much context to include (approx. tokens * 3)
+        function buildPromptWithMemory(userPrompt, maxChars = 20000) {
+            try {
+                if (!document.getElementById('memoryEnabled')?.checked) return userPrompt;
+            } catch { return userPrompt; }
+        
+            const mem = loadMemory();
+            if (!mem.length) return userPrompt;
+        
+            // include newest entries but present them oldest->newest
+            const parts = ['CONTEXT_START'];
+            let used = 0;
+            // iterate from end (newest) backwards and collect until maxChars reached,
+            // then reverse to oldest->newest for readability.
+            const collected = [];
+            for (let i = mem.length - 1; i >= 0; i--) {
+                const e = mem[i];
+                const line = `[${e.role.toUpperCase()}] ${e.content}`;
+                if (used + line.length > maxChars) break;
+                collected.push(line);
+                used += line.length;
+            }
+            // reverse to oldest -> newest
+            collected.reverse();
+            parts.push(...collected);
+            parts.push('CONTEXT_END', '', `USER_PROMPT: ${userPrompt}`);
+            return parts.join('\n\n');
+        }
+        
+        // Hook persistence into addMessage: call saveMemoryEntry when messages are rendered.
+        // To avoid breaking existing behavior, wrap existing addMessage function after it's defined.
+        (function attachMemoryHook() {
+            // Ensure addMessage exists
+            const orig = addMessage;
+            if (typeof orig !== 'function') return;
+            window.addMessage = function (role, content, isCode = false, codeLang = '') {
+                // call the original renderer
+                orig(role, content, isCode, codeLang);
+                try {
+                    // save only meaningful messages (skip loading placeholders)
+                    saveMemoryEntry(role, content, !!isCode);
+                } catch (e) { console.warn('saveMemoryEntry failed', e); }
+            };
+        })();
+        
+        // Expose clearMemory for console/testing (optional)
+        window.clearMemory = clearMemory;
+
+        // Gemini API Function (fixed, uses API_KEY directly)
+        async function callAPI(userPrompt) {
+            // read UI settings
+            const uiMax = parseInt(document.getElementById('maxTokens').value, 10) || 20000;
+            const maxTokens = Math.min(uiMax, 3000000); // large cap - adjust to your model limits/billing
+            const temperature = parseFloat(document.getElementById('temperature').value) || 0.2;
+ 
+            // Detect if the user clearly requests code/files (HTML/CSS/JS etc.)
+            const wantsFiles = /(?:\b(html|css|js|javascript|create|generate|index\.html|script\.js|styles\.css|files?)\b)/i.test(userPrompt);
+
+            // Only force strict code-only output when the user explicitly requests code/files.
+            const FORCE_CODE_INSTRUCTION = wantsFiles ? [
+                "RETURN FORMAT INSTRUCTIONS:",
+                "Return ONLY the requested code files. For each file include a single-line HTML comment with the filename immediately before its fence,",
+                "then a triple-backtick fence with the correct language tag (e.g. ```html, ```css, ```javascript).",
+                "Do not include any explanation or prose outside the code fences."
+            ].join(' ') : '';
+
+            // Build final prompt (prepend instruction only when user asked for code/files)
+            const basePrompt = FORCE_CODE_INSTRUCTION ? (FORCE_CODE_INSTRUCTION + "\n\n" + userPrompt) : userPrompt;
+
+            // Prepend memory/context when enabled. approximate max chars by maxTokens*3
+            const approxMaxChars = Math.min(200000, Math.max(4000, Math.floor(maxTokens * 3)));
+            const promptToSend = buildPromptWithMemory(basePrompt, approxMaxChars);
+ 
+             // Build request payload
+             const apiUrl = `${API_URL}?key=${API_KEY}`;
+             const payload = {
+                contents: [{ parts: [{ text: promptToSend }] }],
+                 generationConfig: { maxOutputTokens: maxTokens, temperature }
+             };
+ 
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                console.log('API raw response:', data);
+
+                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+                // Extract fenced code blocks (if any)
+                const blocks = extractCodeBlocks(aiText);
+
+                if (blocks && blocks.length) {
+                    // Preserve only the fences and return as code (UI will render separate black code cards)
+                    const combined = blocks.map(b => {
+                        const tag = b.lang && b.lang !== 'code' ? b.lang : '';
+                        return (tag ? `\`\`\`${tag}\n${b.code}\n\`\`\`` : `\`\`\`\n${b.code}\n\`\`\``);
+                    }).join('\n\n');
+                    return { text: combined, isCode: true, codeLang: '' };
+                }
+
+                // If user asked explicitly for files but model returned no fences, wrap whole response as code
+                if (wantsFiles) {
+                    const wrapped = aiText.trim() ? `\`\`\`text\n${aiText}\n\`\`\`` : '```text\n\n```';
+                    return { text: wrapped, isCode: true, codeLang: 'text' };
+                }
+
+                // Otherwise return plain text (no code block) — meets requirement: only coding responses are code-type
+                return { text: aiText, isCode: false, codeLang: '' };
+
+            } catch (err) {
+                console.error('API Error:', err);
+                // Return error as plain text (not code)
+                return { text: `Error: ${err.message}`, isCode: false, codeLang: '' };
+            }
+        }
+
+        async function sendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message
+            addMessage('user', message);
+            input.value = '';
+
+            // Show loading state
+            addMessage('assistant', '⏳ Processing...');
+
+            // Call API
+            const response = await callAPI(message);
+
+            // Replace loading message with actual response
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+        }
+
+        // Temperature slider update
+        document.getElementById('temperature').addEventListener('input', function() {
+            document.getElementById('tempValue').textContent = this.value;
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('TABU AI initialized with API support');
+            console.log('Configure your API endpoint in the settings above');
+        });
+
+        // ------------------------------
+        // File upload / attach support
+        // ------------------------------
+        // Holds selected file until user sends or cancels
+        let pendingFile = null;
+
+        // Open native file picker
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+
+        // Handle file selection and show preview in composer area
+        function handleFileInputChange(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            pendingFile = file;
+            showComposerFilePreview(file);
+        }
+
+        // Render a small composer preview for the selected file with Send / Remove actions
+        function showComposerFilePreview(file) {
+            const preview = document.getElementById('filePreview');
+            preview.innerHTML = ''; // reset
+
+            const container = document.createElement('div');
+            container.className = 'flex items-start space-x-3 bg-white p-2 rounded-md border';
+
+            const meta = document.createElement('div');
+            meta.className = 'flex-1';
+
+            // File title and size
+            const title = document.createElement('div');
+            title.className = 'font-medium text-sm';
+            title.textContent = file.name + ' · ' + ((file.size / 1024) < 1024 ? (file.size / 1024).toFixed(1) + ' KB' : (file.size / 1024 / 1024).toFixed(2) + ' MB');
+            meta.appendChild(title);
+
+            // Small preview area (image thumbnail or truncated text / icon)
+            const previewArea = document.createElement('div');
+            previewArea.className = 'mt-2 text-xs text-gray-600';
+
+            // For images show thumbnail
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = document.createElement('img');
+                    img.src = reader.result;
+                    img.alt = file.name;
+                    img.style.maxWidth = '140px';
+                    img.style.maxHeight = '90px';
+                    img.className = 'rounded-sm border';
+                    previewArea.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            } else if (file.type.startsWith('text/') || /\.(md|txt|js|py|java|c|cpp|html|css)$/i.test(file.name)) {
+                // Show first few lines of text files
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const textPreview = document.createElement('pre');
+                    textPreview.className = 'max-h-40 overflow-auto text-xs bg-gray-50 p-2 rounded';
+                    textPreview.textContent = (String(reader.result)).slice(0, 600);
+                    previewArea.appendChild(textPreview);
+                };
+                reader.readAsText(file);
+            } else {
+                // Generic icon for other types (PDF, binary docs)
+                const icon = document.createElement('div');
+                icon.textContent = file.type || 'File';
+                icon.className = 'text-sm';
+                previewArea.appendChild(icon);
+            }
+
+            meta.appendChild(previewArea);
+
+            // Actions: send / remove
+            const actions = document.createElement('div');
+            actions.className = 'flex flex-col space-y-2';
+
+            const sendBtn = document.createElement('button');
+            sendBtn.type = 'button';
+            sendBtn.className = 'text-xs px-3 py-1 bg-blue-500 text-white rounded';
+            sendBtn.textContent = 'Send';
+            sendBtn.onclick = () => sendFileFromComposer();
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'text-xs px-3 py-1 bg-gray-100 rounded';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = () => clearPendingFile();
+
+            actions.appendChild(sendBtn);
+            actions.appendChild(removeBtn);
+
+            container.appendChild(meta);
+            container.appendChild(actions);
+            preview.appendChild(container);
+        }
+
+        // Clear pending file and composer preview
+        function clearPendingFile() {
+            pendingFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('filePreview').innerHTML = '';
+        }
+
+        /**
+         * Add an image message to the chat area.
+         * role: 'user' | 'assistant'
+         * imageUrl: data URL or remote URL
+         * caption: optional text to show with the image
+         */
+        function addImageMessage(role, imageUrl, caption = '') {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-appear flex items-start mb-4';
+
+            if (role === 'user') {
+                // user image on right
+                messageDiv.innerHTML = `
+                    <div class="ml-auto bg-gray-100 p-3 rounded-xl rounded-tr-none max-w-3xl">
+                        <div class="font-medium text-gray-500 mb-1">You</div>
+                        <div class="flex flex-col space-y-2">
+                            <img src="${imageUrl}" alt="${escapeHtml(caption)}" style="max-width:320px; max-height:240px;" class="rounded border" />
+                            ${caption ? `<div class="text-sm text-gray-700">${escapeHtml(caption)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // assistant image on left
+                messageDiv.innerHTML = `
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                        <div class="flex flex-col space-y-2">
+                            <img src="${imageUrl}" alt="${escapeHtml(caption)}" style="max-width:320px; max-height:240px;" class="rounded border" />
+                            ${caption ? `<div class="text-sm text-gray-700">${escapeHtml(caption)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        /**
+         * Send the selected file to the assistant together with an optional user caption.
+         * - caption: text the user typed (can be empty)
+         */
+        async function sendFileFromComposer(caption = '') {
+            if (!pendingFile) return;
+            const file = pendingFile;
+            // clear composer preview / pending state immediately (UI)
+            clearPendingFile();
+
+            // If image: show image + caption in chat as user's message, then send combined prompt
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    const dataUrl = reader.result;
+                    // Display image + caption as user's message in chat
+                    addImageMessage('user', dataUrl, caption || `Uploaded image: ${file.name}`);
+
+                    // show assistant loading placeholder
+                    addMessage('assistant', '⏳ Processing image and prompt...');
+
+                    // Build prompt including user's caption and the image data URL
+                    // Prompt structure: include caption first so model gets context
+                    const promptParts = [];
+                    if (caption && caption.trim()) {
+                        promptParts.push(`User message: ${caption.trim()}`);
+                    } else {
+                        promptParts.push(`User uploaded an image named "${file.name}".`);
+                    }
+                    promptParts.push('Please analyze the image and respond, or ask clarifying questions if needed.');
+                    promptParts.push('DATA_URL_START');
+                    promptParts.push(dataUrl);
+                    promptParts.push('DATA_URL_END');
+                    const prompt = promptParts.join('\n\n');
+
+                    // Call API and replace loading message with response
+                    const response = await callAPI(prompt);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    // If response includes an image URL and you want to show assistant image, use addImageMessage('assistant', url, resp)
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            // If text file: include content + caption together
+            if (file.type.startsWith('text/') || /\.(md|txt|js|py|java|c|cpp|html|css)$/i.test(file.name)) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    const text = String(reader.result);
+                    // Show trimmed preview as user's message
+                    const previewText = caption && caption.trim() ? `${caption}\n\n[Attached file: ${file.name}]` : `Uploaded file: ${file.name}`;
+                    addMessage('user', previewText + '\n\n' + (text.length > 1000 ? text.slice(0, 1000) + '\n\n[truncated]' : text));
+
+                    addMessage('assistant', '⏳ Processing text file and prompt...');
+
+                    const prompt = `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
+                    const response = await callAPI(prompt);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+                reader.readAsText(file);
+                return;
+            }
+
+            // Other binary files: send data URL + caption
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const dataUrl = reader.result || '';
+                addMessage('user', caption && caption.trim() ? `${caption}\n\nUploaded file: ${file.name}` : `Uploaded file: ${file.name} (binary)`);
+
+                addMessage('assistant', '⏳ Processing file and prompt...');
+
+                const prompt = `User message: ${caption}\n\nUploaded binary file: ${file.name}\n\nDATA_URL_START\n${dataUrl}\nDATA_URL_END\n\nIf you cannot process the binary, ask clarifying questions.`;
+                const response = await callAPI(prompt);
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                addMessage('assistant', response.text, response.isCode, response.codeLang);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Modify wrapper sendMessage so when a file is pending it will send both the typed prompt and the file together.
+        const originalSendMessage = (function() {
+            // capture the previously defined sendMessage implementation (if present)
+            // If not present, fallback to a simple sender that calls callAPI directly.
+            try {
+                return sendMessage;
+            } catch {
+                return async function(e) {
+                    if (e && e.preventDefault) e.preventDefault();
+                    const input = document.getElementById('messageInput');
+                    const m = input.value.trim();
+                    if (!m) return;
+                    addMessage('user', m);
+                    input.value = '';
+                    addMessage('assistant', '⏳ Processing...');
+                    const response = await callAPI(m);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+            }
+        })();
+
+        // New sendMessage wrapper: if pendingFile exists, include current input text as caption when sending the file.
+        async function sendMessage(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            // If a file is pending, send the file + caption together
+            if (pendingFile) {
+                // capture caption now and clear input
+                const caption = message;
+                input.value = '';
+                await sendFileFromComposer(caption);
+                return;
+            }
+
+            // No pending file: proceed with normal text flow
+            if (!message) return;
+            addMessage('user', message);
+            input.value = '';
+            addMessage('assistant', '⏳ Processing...');
+            const response = await callAPI(message);
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatContainer.lastChild) chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+        }
+
+        // ------------------------------
+        // Attach menu: show options for Image or Document
+        // ------------------------------
+
+        // Show the attach menu near the attach button
+        function showAttachMenu(event) {
+            const menu = document.getElementById('attachMenu');
+            const btn = document.getElementById('attachBtn');
+
+            // Get button position
+            const rect = btn.getBoundingClientRect();
+
+            // Show the menu (required so we can measure its height)
+            menu.classList.remove('hidden');
+
+            // Temporarily hide visibility while we compute position to avoid flicker
+            menu.style.visibility = 'hidden';
+            menu.style.left = `${rect.left + window.scrollX}px`;
+            // place temporarily to compute height
+            menu.style.top = `${rect.top + window.scrollY - 9999}px`;
+
+            // Force layout and measure
+            const menuHeight = menu.offsetHeight || 0;
+
+            // Calculate position above the button with 8px gap
+            let top = rect.top + window.scrollY - menuHeight - 8;
+
+            // If there's not enough space above, fall back to placing below the button
+            if (top < 8) {
+                top = rect.bottom + window.scrollY + 8;
+            }
+
+            // Apply final position and make visible
+            menu.style.left = `${rect.left + window.scrollX}px`;
+            menu.style.top = `${top}px`;
+            menu.style.visibility = 'visible';
+
+            // Stop propagation so document click handler does not immediately hide it
+            event.stopPropagation();
+        }
+
+        // Hide the attach menu
+        function hideAttachMenu() {
+            document.getElementById('attachMenu').classList.add('hidden');
+        }
+
+        // Choose attach type and open the file picker with appropriate accept types
+        function chooseAttachType(type) {
+            hideAttachMenu();
+            const input = document.getElementById('fileInput');
+            if (type === 'image') {
+                input.accept = 'image/*';
+            } else {
+                // documents: pdf, docx, doc, txt, markdown, and common code/text types
+                input.accept = 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*,.md,.txt';
+            }
+            // Trigger native picker
+            input.click();
+        }
+
+        // Hide menu when clicking elsewhere on the page
+        document.addEventListener('click', function (e) {
+            const menu = document.getElementById('attachMenu');
+            const btn = document.getElementById('attachBtn');
+            if (!menu.classList.contains('hidden')) {
+                // if click was outside menu and attach button, hide menu
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    hideAttachMenu();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
