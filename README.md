@@ -1,4 +1,4 @@
-<h1 style="font-size:600;">TABU-AI 🤖<h1>
+TABU-AI 🤖
 
 Total Assistant By Us – An AI-powered chatbot for coding & general queries
 
