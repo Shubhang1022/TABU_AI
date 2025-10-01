@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,41 +8,120 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        *{
+        * {
             scrollbar-width: none;
         }
-        body{
+
+        body {
             height: 100vh;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
+
+        #voiceBackdrop {
+            display: none;
         }
+
+        #voiceOverlay.flex {
+            display: flex;
+        }
+
+        #voiceCircle.speaking {
+            animation: pulseScale 900ms ease-in-out infinite;
+            box-shadow: 0 8px 40px rgba(99, 102, 241, 0.35);
+            transform: scale(1.06);
+        }
+
+        @keyframes pulseScale {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.12) rotate(2deg);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
         .typing-indicator span {
             animation: pulse 1s infinite;
         }
+
         .message-appear {
             animation: messageAppear 0.3s ease-out;
         }
+
         @keyframes messageAppear {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         .gradient-text {
             background: linear-gradient(90deg, #3b82f6, #8b5cf6);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
         }
-        .footer{
-            
+
+        .footer {
+
             width: 100%;
             font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
             display: flex;
             justify-content: center;
         }
+
+        /* overlay visuals */
+        #voiceBackdrop {
+            display: none;
+        }
+
+        #voiceOverlay.flex {
+            display: flex;
+        }
+
+        #voiceCircle.speaking {
+            animation: pulseScale 900ms ease-in-out infinite;
+            box-shadow: 0 8px 40px rgba(99, 102, 241, 0.35);
+            transform: scale(1.06);
+        }
+
+        @keyframes pulseScale {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.12) rotate(2deg);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
     </style>
 </head>
+
 <body class="bg-gray-50 min-h-screen ">
     <div class="max-w-6xl mx-auto px-4 ">
         <!-- Header -->
@@ -57,7 +137,9 @@
             </div>
             <div class="flex space-x-2">
                 <!-- <button onclick="showModal()"  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Settings</button> -->
-                <button onclick="clearChat()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Clear Chat</button>
+                <button onclick="clearChat()"
+                    class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Clear
+                    Chat</button>
             </div>
         </header>
 
@@ -75,31 +157,42 @@
             <div class="border-t border-gray-200 p-4 bg-gray-50">
                 <form id="messageForm" class="flex flex-col space-y-2" onsubmit="sendMessage(event)">
                     <div class="flex items-center space-x-2">
-                        <input id="messageInput" type="text" placeholder="Type your message..." 
-                               class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input id="messageInput" type="text" placeholder="Type your message..."
+                            class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <!-- Attach button triggers attach menu (choose image or document) -->
                         <button type="button" id="attachBtn" onclick="showAttachMenu(event)" title="Attach file"
-                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
                             <i class="fas fa-paperclip"></i>
                         </button>
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition">
+
+                        <!-- Mic button: open voice overlay -->
+                        <button type="button" id="micBtn" onclick="openVoiceOverlay()" title="Open voice chat"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button type="submit"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition">
                             <i class="fas fa-paper-plane"></i>
                         </button>
 
                         <!-- Hidden file input for images/docs; accept will be set dynamically -->
-                        <input id="fileInput" type="file" accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
-                               onchange="handleFileInputChange(event)" class="hidden">
+                        <input id="fileInput" type="file"
+                            accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
+                            onchange="handleFileInputChange(event)" class="hidden">
                     </div>
 
                     <!-- Attach menu (hidden, shown when paperclip clicked) -->
                     <div id="attachMenu" class="hidden absolute z-50 bg-white shadow rounded-md py-2 w-44">
-                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100" onclick="chooseAttachType('image')">
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                            onclick="chooseAttachType('image')">
                             <i class="fas fa-image mr-2 text-gray-600"></i> Upload Image
                         </button>
-                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100" onclick="chooseAttachType('document')">
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                            onclick="chooseAttachType('document')">
                             <i class="fas fa-file-alt mr-2 text-gray-600"></i> Upload Document
                         </button>
-                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100" onclick="hideAttachMenu()">
+                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
+                            onclick="hideAttachMenu()">
                             Cancel
                         </button>
                     </div>
@@ -111,7 +204,8 @@
         </div>
 
         <!-- Settings Modal -->
-        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div id="settingsModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl p-6 max-w-md w-full">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-bold">Settings</h2>
@@ -124,13 +218,13 @@
                         <label for="maxTokens" class="block text-sm font-medium mb-1">Max Tokens</label>
                         <!-- Increased default and max to allow very large generations -->
                         <input type="number" id="maxTokens" name="maxTokens" value="20000" min="50" max="300000"
-                               title="Maximum tokens to allow in model generation" placeholder="e.g. 20000"
-                               aria-label="Max Tokens" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                            title="Maximum tokens to allow in model generation" placeholder="e.g. 20000"
+                            aria-label="Max Tokens" class="w-full border border-gray-300 rounded-md px-3 py-2">
                     </div>
                     <div>
                         <label for="temperature" class="block text-sm font-medium mb-1">Temperature</label>
-                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7"
-                               class="w-full" title="Temperature" aria-label="Temperature slider">
+                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7" class="w-full"
+                            title="Temperature" aria-label="Temperature slider">
                         <span id="tempValue" class="text-sm text-gray-600">0.7</span>
                     </div>
 
@@ -144,7 +238,9 @@
                 </div>
             </div>
         </div>
-        <footer class="footer min-h-2"><h1>	&#169;AI BY SHUBH-DEV</h1></footer>
+        <footer class="footer min-h-2">
+            <h1> &#169;AI BY SHUBH-DEV</h1>
+        </footer>
     </div>
 
 
@@ -257,9 +353,10 @@
                 return;
             }
 
-            // If not code, render text normally
+            // If not code, render text with heading/subheading detection
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message-appear flex items-start mb-4';
+
             if (role === 'user') {
                 messageDiv.innerHTML = `
                     <div class="ml-auto bg-gray-100 p-3 rounded-xl rounded-tr-none max-w-3xl">
@@ -268,17 +365,43 @@
                     </div>
                 `;
             } else {
-                const lines = String(content).split('\n').filter(line => line.trim() !== '');
-                const formatted = lines.map(line => {
-                    if (/^\d+\./.test(line.trim())) {
-                        return `<div class="mb-1"><span class="font-semibold">${escapeHtml(line.trim().slice(0, line.indexOf('.') + 1))}</span> ${escapeHtml(line.trim().slice(line.indexOf('.') + 1).trim())}</div>`;
+                // Split into blocks by double newline to detect headings/subheadings
+                const blocks = String(content).split(/\n\s*\n/).map(b => b.trim()).filter(b => b !== '');
+                const rendered = blocks.map(block => {
+                    // Heading syntax: Markdown-style (#, ##, ###)
+                    const h1 = block.match(/^#\s+(.+)/);
+                    if (h1) {
+                        return `<div class="mb-2 text-xl font-bold">${escapeHtml(h1[1])}</div>`;
                     }
-                    return `<div class="mb-1">${escapeHtml(line)}</div>`;
+                    const h2 = block.match(/^##\s+(.+)/);
+                    if (h2) {
+                        return `<div class="mb-2 text-lg font-semibold">${escapeHtml(h2[1])}</div>`;
+                    }
+                    const h3 = block.match(/^###\s+(.+)/);
+                    if (h3) {
+                        return `<div class="mb-2 text-base font-semibold">${escapeHtml(h3[1])}</div>`;
+                    }
+                    // If a single short line ending with colon, treat as subheading
+                    if (/^[^\n]{1,120}:$/.test(block)) {
+                        return `<div class="mb-1 font-semibold">${escapeHtml(block)}</div>`;
+                    }
+                    // Otherwise render paragraph(s), preserve line breaks
+                    const paraLines = block.split('\n').map(l => l.trim()).filter(l => l !== '');
+                    // If lines look like numbered list, keep numbering bold for first token
+                    const paraRendered = paraLines.map(line => {
+                        const numMatch = line.match(/^(\d+\.)\s+(.*)/);
+                        if (numMatch) {
+                            return `<div class="mb-1"><span class="font-semibold">${escapeHtml(numMatch[1])}</span> ${escapeHtml(numMatch[2])}</div>`;
+                        }
+                        return `<div class="mb-1">${escapeHtml(line)}</div>`;
+                    }).join('');
+                    return `<div class="mb-3">${paraRendered}</div>`;
                 }).join('');
+
                 messageDiv.innerHTML = `
                     <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
-                        <div class="font-medium text-blue-600 mb-1 flex flex-col">TABU AI</div>
-                        ${formatted}
+                        <div class="font-medium text-blue-600 mb-2 flex flex-col">TABU AI</div>
+                        ${rendered}
                     </div>
                 `;
             }
@@ -371,7 +494,7 @@
         const MEMORY_KEY = 'tabuai_chat_memory_v1';
         const MEMORY_MAX_ENTRIES = 300;        // keep last N small to control size
         const MEMORY_MAX_CONTENT_CHARS = 4000; // don't persist very large contents (images, huge files)
-        
+
         // Load memory array (safely)
         function loadMemory() {
             try {
@@ -380,7 +503,7 @@
                 return [];
             }
         }
-        
+
         // Save a single memory entry (role: 'user'|'assistant', content string)
         function saveMemoryEntry(role, content, isCode = false) {
             // Only save if memory is enabled in UI
@@ -392,7 +515,7 @@
             const lower = String(content).toLowerCase();
             if (lower.includes('⏳ processing') || lower.includes('chat cleared') || lower.includes('...adding comments')) return;
             if (content.includes('DATA_URL_START') || content.length > MEMORY_MAX_CONTENT_CHARS) return;
-        
+
             const mem = loadMemory();
             mem.push({ role, content, isCode: !!isCode, ts: Date.now() });
             // trim oldest entries
@@ -403,44 +526,46 @@
                 console.warn('Failed to save memory:', e);
             }
         }
-        
+
         // Clear persistent memory on demand
         function clearMemory() {
             localStorage.removeItem(MEMORY_KEY);
             // small UI feedback (do not automatically save this feedback)
             addMessage('assistant', 'Memory cleared.', false, '');
         }
-        
+
         // Build a single prompt by prepending recent memory entries (oldest->newest)
         // maxChars controls how much context to include (approx. tokens * 3)
         function buildPromptWithMemory(userPrompt, maxChars = 20000) {
             try {
                 if (!document.getElementById('memoryEnabled')?.checked) return userPrompt;
             } catch { return userPrompt; }
-        
+
             const mem = loadMemory();
             if (!mem.length) return userPrompt;
-        
+
             // include newest entries but present them oldest->newest
+            // NOTE: do NOT include bracketed role tokens like "[ASSISTANT]" in the context lines,
+            // because the model may echo those markers verbatim. Use clear "User:" / "Assistant:" labels
+            // and keep a short directive to the model to avoid repeating role markers in its reply.
             const parts = ['CONTEXT_START'];
+            parts.push('Instruction: The following are prior messages. When you reply, do NOT repeat role markers like [ASSISTANT] or [USER]; respond naturally.');
             let used = 0;
-            // iterate from end (newest) backwards and collect until maxChars reached,
-            // then reverse to oldest->newest for readability.
             const collected = [];
             for (let i = mem.length - 1; i >= 0; i--) {
                 const e = mem[i];
-                const line = `[${e.role.toUpperCase()}] ${e.content}`;
+                const prefix = (e.role === 'assistant') ? 'Assistant: ' : 'User: ';
+                const line = `${prefix}${e.content}`;
                 if (used + line.length > maxChars) break;
                 collected.push(line);
                 used += line.length;
             }
-            // reverse to oldest -> newest
             collected.reverse();
             parts.push(...collected);
             parts.push('CONTEXT_END', '', `USER_PROMPT: ${userPrompt}`);
             return parts.join('\n\n');
         }
-        
+
         // Hook persistence into addMessage: call saveMemoryEntry when messages are rendered.
         // To avoid breaking existing behavior, wrap existing addMessage function after it's defined.
         (function attachMemoryHook() {
@@ -456,7 +581,7 @@
                 } catch (e) { console.warn('saveMemoryEntry failed', e); }
             };
         })();
-        
+
         // Expose clearMemory for console/testing (optional)
         window.clearMemory = clearMemory;
 
@@ -466,7 +591,7 @@
             const uiMax = parseInt(document.getElementById('maxTokens').value, 10) || 20000;
             const maxTokens = Math.min(uiMax, 3000000); // large cap - adjust to your model limits/billing
             const temperature = parseFloat(document.getElementById('temperature').value) || 0.2;
- 
+
             // Detect if the user clearly requests code/files (HTML/CSS/JS etc.)
             const wantsFiles = /(?:\b(html|css|js|javascript|create|generate|index\.html|script\.js|styles\.css|files?)\b)/i.test(userPrompt);
 
@@ -483,15 +608,17 @@
 
             // Prepend memory/context when enabled. approximate max chars by maxTokens*3
             const approxMaxChars = Math.min(200000, Math.max(4000, Math.floor(maxTokens * 3)));
-            const promptToSend = buildPromptWithMemory(basePrompt, approxMaxChars);
- 
-             // Build request payload
-             const apiUrl = `${API_URL}?key=${API_KEY}`;
-             const payload = {
+            // Add a short system instruction to avoid the model echoing role tags from the context
+            const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
+            const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
+
+            // Build request payload
+            const apiUrl = `${API_URL}?key=${API_KEY}`;
+            const payload = {
                 contents: [{ parts: [{ text: promptToSend }] }],
-                 generationConfig: { maxOutputTokens: maxTokens, temperature }
-             };
- 
+                generationConfig: { maxOutputTokens: maxTokens, temperature }
+            };
+
             try {
                 const res = await fetch(apiUrl, {
                     method: 'POST',
@@ -556,12 +683,12 @@
         }
 
         // Temperature slider update
-        document.getElementById('temperature').addEventListener('input', function() {
+        document.getElementById('temperature').addEventListener('input', function () {
             document.getElementById('tempValue').textContent = this.value;
         });
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('TABU AI initialized with API support');
             console.log('Configure your API endpoint in the settings above');
         });
@@ -719,6 +846,9 @@
             // clear composer preview / pending state immediately (UI)
             clearPendingFile();
 
+            // Instruction to avoid code output for file-based prompts unless user asks for code
+            const NO_CODE_INSTRUCTION = "Please respond in plain text. Do NOT return code blocks or code fences unless I explicitly request code.";
+
             // If image: show image + caption in chat as user's message, then send combined prompt
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
@@ -731,8 +861,8 @@
                     addMessage('assistant', '⏳ Processing image and prompt...');
 
                     // Build prompt including user's caption and the image data URL
-                    // Prompt structure: include caption first so model gets context
                     const promptParts = [];
+                    promptParts.push(NO_CODE_INSTRUCTION);
                     if (caption && caption.trim()) {
                         promptParts.push(`User message: ${caption.trim()}`);
                     } else {
@@ -748,7 +878,6 @@
                     const response = await callAPI(prompt);
                     const chatContainer = document.getElementById('chatContainer');
                     if (chatContainer.lastChild) chatContainer.lastChild.remove();
-                    // If response includes an image URL and you want to show assistant image, use addImageMessage('assistant', url, resp)
                     addMessage('assistant', response.text, response.isCode, response.codeLang);
                 };
                 reader.readAsDataURL(file);
@@ -766,7 +895,7 @@
 
                     addMessage('assistant', '⏳ Processing text file and prompt...');
 
-                    const prompt = `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
+                    const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
                     const response = await callAPI(prompt);
                     const chatContainer = document.getElementById('chatContainer');
                     if (chatContainer.lastChild) chatContainer.lastChild.remove();
@@ -784,7 +913,7 @@
 
                 addMessage('assistant', '⏳ Processing file and prompt...');
 
-                const prompt = `User message: ${caption}\n\nUploaded binary file: ${file.name}\n\nDATA_URL_START\n${dataUrl}\nDATA_URL_END\n\nIf you cannot process the binary, ask clarifying questions.`;
+                const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nUploaded binary file: ${file.name}\n\nDATA_URL_START\n${dataUrl}\nDATA_URL_END\n\nIf you cannot process the binary, ask clarifying questions.`;
                 const response = await callAPI(prompt);
                 const chatContainer = document.getElementById('chatContainer');
                 if (chatContainer.lastChild) chatContainer.lastChild.remove();
@@ -794,13 +923,13 @@
         }
 
         // Modify wrapper sendMessage so when a file is pending it will send both the typed prompt and the file together.
-        const originalSendMessage = (function() {
+        const originalSendMessage = (function () {
             // capture the previously defined sendMessage implementation (if present)
             // If not present, fallback to a simple sender that calls callAPI directly.
             try {
                 return sendMessage;
             } catch {
-                return async function(e) {
+                return async function (e) {
                     if (e && e.preventDefault) e.preventDefault();
                     const input = document.getElementById('messageInput');
                     const m = input.value.trim();
@@ -914,5 +1043,234 @@
             }
         });
     </script>
+
+    <!-- Voice overlay (insert before closing </body>) -->
+<div id="voiceOverlay" class="hidden fixed inset-0 z-50 items-center justify-center">
+    <div id="voiceBackdrop" class="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm"></div>
+    <div class="relative z-60 flex flex-col items-center justify-center">
+        <div id="voicePanel" class="bg-white rounded-xl p-6 w-80 flex flex-col items-center space-y-4 shadow-lg">
+            <div id="voiceCircle" class="w-28 h-28 rounded-full bg-gradient-to-r from-blue-400 to-purple-600 flex items-center justify-center transform transition-transform">
+                <i id="voiceWave" class="fas fa-waveform text-white text-2xl"></i>
+            </div>
+            <div id="voiceStatus" class="text-sm text-gray-700">Initializing...</div>
+            <div class="flex space-x-2">
+                <button id="voiceStopBtn" class="px-3 py-1 bg-red-500 text-white rounded">Stop</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // safe globals for overlay voice flow
+    let _voiceRecognition = null;
+    let _voiceOverlayActive = false;
+    let _voiceProcessing = false;
+    const VOICE_LANG = 'en-US';
+
+    // Initialize SpeechRecognition (no HTML injected here)
+    function initOverlayRecognition() {
+        if (_voiceRecognition) return;
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            const s = document.getElementById('voiceStatus');
+            if (s) s.textContent = 'Speech recognition not supported in this browser.';
+            return;
+        }
+        _voiceRecognition = new SR();
+        _voiceRecognition.lang = VOICE_LANG;
+        _voiceRecognition.interimResults = false;
+        _voiceRecognition.maxAlternatives = 1;
+
+        _voiceRecognition.addEventListener('error', function (ev) {
+            console.warn('Recognition error', ev);
+            if (_voiceOverlayActive) {
+                const s = document.getElementById('voiceStatus');
+                if (s) s.textContent = 'Recognition error';
+            }
+        });
+
+        _voiceRecognition.addEventListener('result', async function (ev) {
+            if (!_voiceOverlayActive) return;
+            try {
+                const last = ev.results[ev.results.length - 1];
+                const transcript = String(last[0].transcript || '').trim();
+                if (!transcript) {
+                    if (_voiceOverlayActive) startListeningOnce();
+                    return;
+                }
+                try { _voiceRecognition.stop(); } catch (e) {}
+                await handleUserSpeechTurn(transcript);
+            } catch (e) {
+                console.error('recognition result error', e);
+                if (_voiceOverlayActive) startListeningOnce();
+            }
+        });
+
+        // no-op on end: controlled restarts are handled in the flow
+        _voiceRecognition.addEventListener('end', function () {});
+    }
+
+    async function startListeningOnce() {
+        if (!_voiceOverlayActive || !_voiceRecognition) return;
+        try {
+            _voiceProcessing = false;
+            const s = document.getElementById('voiceStatus');
+            if (s) s.textContent = 'Listening...';
+            _voiceRecognition.start();
+        } catch (e) {
+            console.warn('startListeningOnce failed', e);
+            setTimeout(function () { if (_voiceOverlayActive) startListeningOnce(); }, 500);
+        }
+    }
+
+    // Summarize plain assistant text for speaking (strip code fences, limit sentences/chars)
+    function summarizeForSpeech(text, maxSentences = 2, maxChars = 240) {
+        if (!text) return '';
+        // strip code fences and common role markers the model might echo
+        let plain = String(text).replace(/```[\s\S]*?```/g, '').replace(/\[ASSISTANT\]|\[USER\]/gi, '').trim();
+        plain = plain.replace(/\s+/g, ' ');
+        if (plain.length <= maxChars) return plain;
+
+        // Split into sentences; join up to maxSentences while respecting maxChars
+        const sentences = plain.match(/[^.!?]+[.!?]*/g) || [];
+        if (sentences.length) {
+            let out = '';
+            for (let i = 0; i < Math.min(maxSentences, sentences.length); i++) {
+                if ((out + sentences[i]).length > maxChars) break;
+                out += sentences[i] + ' ';
+            }
+            out = out.trim();
+            if (out) return out.length <= maxChars ? out : out.slice(0, maxChars).trim() + '...';
+        }
+
+        // Fallback: truncate at a safe word boundary
+        let truncated = plain.slice(0, maxChars);
+        const lastSpace = truncated.lastIndexOf(' ');
+        if (lastSpace > Math.floor(maxChars * 0.4)) truncated = truncated.slice(0, lastSpace);
+        return truncated.trim() + '...';
+    }
+
+    // Speak a short summary instead of the full response
+    function speakAssistantText(text) {
+        const summary = summarizeForSpeech(text);
+        return new Promise(function (resolve) {
+            if (!('speechSynthesis' in window) || !summary) { resolve(); return; }
+            var utter = new SpeechSynthesisUtterance(summary);
+            utter.lang = VOICE_LANG;
+            var circle = document.getElementById('voiceCircle');
+            if (circle) circle.classList.add('speaking');
+            utter.addEventListener('end', function () {
+                if (circle) circle.classList.remove('speaking');
+                resolve();
+            });
+            utter.addEventListener('start', function () {
+                try { if (_voiceRecognition) _voiceRecognition.abort(); } catch (e) {}
+            });
+            try { window.speechSynthesis.cancel(); } catch (e) {}
+            window.speechSynthesis.speak(utter);
+            // fallback timeout in case 'end' doesn't fire
+            var fallbackTimeout = Math.max(3000, summary.length * 60);
+            setTimeout(function () {
+                if (circle) circle.classList.remove('speaking');
+                resolve();
+            }, fallbackTimeout + 1500);
+        });
+    }
+
+    function removeSpeakingVisual() {
+        var circle = document.getElementById('voiceCircle');
+        if (circle) circle.classList.remove('speaking');
+    }
+
+    // main turn handler: send transcript to callAPI(), render chat, speak reply, then listen again
+    async function handleUserSpeechTurn(transcript) {
+        if (!_voiceOverlayActive) return;
+        _voiceProcessing = true;
+        try {
+            addMessage('user', transcript);
+            var statusEl = document.getElementById('voiceStatus');
+            if (statusEl) statusEl.textContent = 'Processing...';
+            addMessage('assistant', '⏳ Processing...');
+            var response;
+            try {
+                response = await callAPI(transcript);
+            } catch (err) {
+                response = { text: 'Error contacting API.', isCode: false, codeLang: '' };
+            }
+            var chatContainer = document.getElementById('chatContainer');
+            if (chatContainer && chatContainer.lastChild) chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+            if (statusEl) statusEl.textContent = 'Speaking...';
+            if (response.isCode) {
+                var plain = String(response.text).replace(/```[\s\S]*?```/g, '').trim();
+                var summary = plain ? plain.slice(0, 300) : 'I returned code. Check the chat for details.';
+                await speakAssistantText('I returned code. ' + summary);
+            } else {
+                await speakAssistantText(response.text);
+            }
+            if (_voiceOverlayActive) {
+                if (statusEl) statusEl.textContent = 'Listening...';
+                setTimeout(function () { if (_voiceOverlayActive) startListeningOnce(); }, 250);
+            } else {
+                if (statusEl) statusEl.textContent = 'Stopped';
+            }
+        } finally {
+            _voiceProcessing = false;
+        }
+    }
+
+    // expose open/stop functions globally so onclick works and no ReferenceError occurs
+    window.openVoiceOverlay = function () {
+        var overlay = document.getElementById('voiceOverlay');
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (!overlay) return;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        if (backdrop) backdrop.style.display = 'block';
+        _voiceOverlayActive = true;
+        var s = document.getElementById('voiceStatus');
+        if (s) s.textContent = 'Initializing voice...';
+        initOverlayRecognition();
+        // greet then start listening
+        (async function () {
+            await speakAssistantText("Hello! I'm listening. Say stop to end.");
+            if (_voiceOverlayActive) startListeningOnce();
+        })();
+    };
+
+    window.stopVoiceOverlay = function () {
+        _voiceOverlayActive = false;
+        try { if (_voiceRecognition) { _voiceRecognition.abort(); } } catch (e) {}
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+        var overlay = document.getElementById('voiceOverlay');
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (overlay) { overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+        if (backdrop) backdrop.style.display = 'none';
+        removeSpeakingVisual();
+        var s = document.getElementById('voiceStatus');
+        if (s) s.textContent = 'Voice chat stopped';
+    };
+
+    // wire stop button after DOM ready
+    document.addEventListener('DOMContentLoaded', function () {
+        var stopBtn = document.getElementById('voiceStopBtn');
+        if (stopBtn) stopBtn.addEventListener('click', window.stopVoiceOverlay, false);
+
+        // also close overlay on backdrop click
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (backdrop) backdrop.addEventListener('click', function () {
+            window.stopVoiceOverlay();
+        }, false);
+    });
+
+    // cleanup on unload
+    window.addEventListener('beforeunload', function () {
+        try { if (_voiceRecognition) _voiceRecognition.abort(); } catch (e) {}
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+    });
+})();
+</script>
 </body>
+
 </html>
