@@ -1,8 +1,8 @@
-TABU-AI 🤖
+->TABU-AI 🤖
 
 Total Assistant By Us – An AI-powered chatbot for coding & general queries
 
-📌 Overview
+->📌 Overview
 
 TABU-AI is a simple yet powerful AI chatbot built using HTML, CSS, and JavaScript.
 It can:
@@ -13,7 +13,7 @@ It can:
 
 The goal of TABU-AI is to provide an easy-to-use chatbot assistant for students, learners, and everyday users.
 
-🚀 Features
+->🚀 Features
 
 🖥 Frontend & Backend in Pure JS – No heavy frameworks.
 
@@ -23,13 +23,13 @@ The goal of TABU-AI is to provide an easy-to-use chatbot assistant for students,
 
 🔎 General Query Handling – Get instant answers.
 
-🛠️ Tech Stack
+->🛠️ Tech Stack
 
 Frontend: HTML, CSS, JavaScript
 
 Backend / Logic: JavaScript (with API integration if required)
 
-🧑‍💻 Usage
+->🧑‍💻 Usage
 
 Ask TABU-AI coding questions like:
 
@@ -43,7 +43,7 @@ Or general queries like:
 
 "What is the capital of Japan?"
 
-📌 Roadmap
+->📌 Roadmap
 
  Improve chatbot UI with animations.
 
