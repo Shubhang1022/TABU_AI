@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TABU-AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="shortcut icon" href="NAME_LOGO.png" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -122,13 +123,13 @@
     </style>
 </head>
 
-<body class="bg-gray-50 min-h-screen ">
+<body class="bg-gray-400 min-h-screen ">
     <div class="max-w-6xl mx-auto px-4 ">
         <!-- Header -->
         <header class="flex items-center justify-between mb-8">
             <div class="flex items-center space-x-4 ">
-                <div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
-                    <i class="fas fa-brain text-white text-xl"></i>
+                <div class="w-12 h-12 rounded-full bg-gray-400 overflow-hidden flex items-center justify-center">
+                    <img src="NAME_LOGO.png" alt="TABU AI logo" class="w-10 h-10 object-cover" />
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold gradient-text">TABU AI</h1>
@@ -142,7 +143,8 @@
                     Chat</button>
             </div>
         </header>
-
+        <hr>
+        <br>
         <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
             <div id="chatContainer" class="p-6 h-96 overflow-y-auto">
                 <div class="message-appear flex items-start mb-4">
@@ -171,13 +173,14 @@
                             <i class="fas fa-microphone"></i>
                         </button>
                         <button type="submit"
-                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition">
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition" title="upload">
                             <i class="fas fa-paper-plane"></i>
                         </button>
 
                         <!-- Hidden file input for images/docs; accept will be set dynamically -->
                         <input id="fileInput" type="file"
                             accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
+                            placeholder="inpurt text..." aria-label="File input"
                             onchange="handleFileInputChange(event)" class="hidden">
                     </div>
 
@@ -209,7 +212,7 @@
             <div class="bg-white rounded-xl p-6 max-w-md w-full">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-bold">Settings</h2>
-                    <button onclick="hideModal()" class="text-gray-400 hover:text-gray-600">
+                    <button onclick="hideModal()" title="time" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -247,8 +250,8 @@
     <script>
         // API Configuration
         // Insert your API key directly here (not visible on screen)
-        const API_KEY = 'AIzaSyD7PLy72cCmrd7hFcKAuj9jB2m8jYCVKLQ';
-        const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+        const API_KEY = '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';
+        const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
         function showModal() {
             document.getElementById('settingsModal').classList.remove('hidden');
@@ -585,17 +588,21 @@
         // Expose clearMemory for console/testing (optional)
         window.clearMemory = clearMemory;
 
-        // Gemini API Function (fixed, uses API_KEY directly)
+        // Gemini / OpenRouter wrapper — replaced to use OpenRouter chat/completions format
         async function callAPI(userPrompt) {
-            // read UI settings
+            // Basic API key check
+            if (!API_KEY || API_KEY === '' || API_KEY.startsWith('YOUR_')) {
+                const msg = 'API key is missing or invalid. Set API_KEY in the app.';
+                console.error(msg);
+                addMessage('assistant', msg, false, '');
+                return { text: msg, isCode: false, codeLang: '' };
+            }
+
             const uiMax = parseInt(document.getElementById('maxTokens').value, 10) || 20000;
-            const maxTokens = Math.min(uiMax, 3000000); // large cap - adjust to your model limits/billing
+            const maxTokens = Math.min(uiMax, 300000);
             const temperature = parseFloat(document.getElementById('temperature').value) || 0.2;
 
-            // Detect if the user clearly requests code/files (HTML/CSS/JS etc.)
             const wantsFiles = /(?:\b(html|css|js|javascript|create|generate|index\.html|script\.js|styles\.css|files?)\b)/i.test(userPrompt);
-
-            // Only force strict code-only output when the user explicitly requests code/files.
             const FORCE_CODE_INSTRUCTION = wantsFiles ? [
                 "RETURN FORMAT INSTRUCTIONS:",
                 "Return ONLY the requested code files. For each file include a single-line HTML comment with the filename immediately before its fence,",
@@ -603,39 +610,116 @@
                 "Do not include any explanation or prose outside the code fences."
             ].join(' ') : '';
 
-            // Build final prompt (prepend instruction only when user asked for code/files)
             const basePrompt = FORCE_CODE_INSTRUCTION ? (FORCE_CODE_INSTRUCTION + "\n\n" + userPrompt) : userPrompt;
-
-            // Prepend memory/context when enabled. approximate max chars by maxTokens*3
             const approxMaxChars = Math.min(200000, Math.max(4000, Math.floor(maxTokens * 3)));
-            // Add a short system instruction to avoid the model echoing role tags from the context
             const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
             const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
 
-            // Build request payload
-            const apiUrl = `${API_URL}?key=${API_KEY}`;
+            // Build OpenRouter-compatible messages array
+            const messages = [
+                { role: "system", content: [{ type: "text", text: "You are TABU AI. Be helpful, concise, and do not repeat role markers." }] },
+                { role: "user", content: [{ type: "text", text: promptToSend }] }
+            ];
+
+            const apiUrl = API_URL || 'https://openrouter.ai/api/v1/chat/completions';
             const payload = {
-                contents: [{ parts: [{ text: promptToSend }] }],
-                generationConfig: { maxOutputTokens: maxTokens, temperature }
+                model: "gpt-4o-mini", // adjust to model you have access to on OpenRouter
+                messages,
+                temperature: Math.max(0, Math.min(2, temperature)),
+                max_tokens: Math.min(maxTokens, 120000)
             };
+
+            // Simple local throttle
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps || [];
+            const now = Date.now();
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps.filter(ts => now - ts < 60_000);
+            const LOCAL_MAX_PER_MIN = 20;
+            if (window.__tabu_request_timestamps.length >= LOCAL_MAX_PER_MIN) {
+                const msg = 'Local throttling: too many requests. Wait a moment.';
+                addMessage('assistant', msg, false, '');
+                return { text: msg, isCode: false, codeLang: '' };
+            }
+            window.__tabu_request_timestamps.push(now);
 
             try {
                 const res = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
                     body: JSON.stringify(payload)
                 });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
+
+                const bodyText = await res.text().catch(() => '');
+                // handle HTTP errors early
+                if (!res.ok) {
+                    console.error('API HTTP error', res.status, bodyText);
+                    let bodyJson = null;
+                    try { bodyJson = JSON.parse(bodyText); } catch (e) { /* ignore */ }
+
+                    if (res.status === 401) {
+                        const msg = 'Authentication failed (401). Check your API key.';
+                        addMessage('assistant', msg, false, '');
+                        return { text: msg, isCode: false, codeLang: '' };
+                    }
+                    if (res.status === 403) {
+                        const msg = 'Access denied (403). Ensure the API key has permission and billing is enabled.';
+                        addMessage('assistant', msg, false, '');
+                        return { text: msg, isCode: false, codeLang: '' };
+                    }
+                    if (res.status === 429) {
+                        const detail = bodyJson?.error?.message || bodyText || '';
+                        const msg = `Rate limit / quota error (429). ${detail} Try again later or reduce request frequency.`;
+                        addMessage('assistant', msg, false, '');
+                        return { text: msg, isCode: false, codeLang: '' };
+                    }
+
+                    const msg = `API Error: HTTP ${res.status} ${res.statusText}${bodyText ? ' - ' + bodyText : ''}`;
+                    addMessage('assistant', msg, false, '');
+                    return { text: msg, isCode: false, codeLang: '' };
+                }
+
+                // parse successful response
+                let data;
+                try { data = JSON.parse(bodyText); } catch (e) { data = null; }
+
                 console.log('API raw response:', data);
 
-                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                // Robust extraction for OpenRouter / ChatCompletions-like response
+                let aiText = '';
 
-                // Extract fenced code blocks (if any)
+                // 1) OpenRouter typical: choices[0].message.content -> array of content blocks
+                const choice = data?.choices?.[0];
+                if (choice?.message) {
+                    const content = choice.message.content;
+                    if (Array.isArray(content)) {
+                        aiText = content.map(c => c?.text || c?.content || '').filter(Boolean).join('\n\n');
+                    } else if (typeof content === 'string') {
+                        aiText = content;
+                    } else if (content && typeof content === 'object') {
+                        aiText = content.text || '';
+                    }
+                }
+
+                // 2) fallback: choices[0].text (older format)
+                if (!aiText && choice?.text) aiText = choice.text;
+
+                // 3) fallback: top-level 'output' or 'result' or 'message'
+                if (!aiText) {
+                    if (data?.output_text) aiText = data.output_text;
+                    else if (Array.isArray(data?.output)) {
+                        aiText = data.output.map(o => (o?.content || []).map(c => c.text || '').join('')).join('\n\n');
+                    } else if (typeof data?.message === 'string') {
+                        aiText = data.message;
+                    }
+                }
+
+                aiText = String(aiText || '').trim();
+
+                // Detect code fences and return accordingly
                 const blocks = extractCodeBlocks(aiText);
-
                 if (blocks && blocks.length) {
-                    // Preserve only the fences and return as code (UI will render separate black code cards)
                     const combined = blocks.map(b => {
                         const tag = b.lang && b.lang !== 'code' ? b.lang : '';
                         return (tag ? `\`\`\`${tag}\n${b.code}\n\`\`\`` : `\`\`\`\n${b.code}\n\`\`\``);
@@ -643,19 +727,17 @@
                     return { text: combined, isCode: true, codeLang: '' };
                 }
 
-                // If user asked explicitly for files but model returned no fences, wrap whole response as code
-                if (wantsFiles) {
-                    const wrapped = aiText.trim() ? `\`\`\`text\n${aiText}\n\`\`\`` : '```text\n\n```';
-                    return { text: wrapped, isCode: true, codeLang: 'text' };
+                if (wantsFiles && aiText.trim()) {
+                    return { text: `\`\`\`text\n${aiText}\n\`\`\``, isCode: true, codeLang: 'text' };
                 }
 
-                // Otherwise return plain text (no code block) — meets requirement: only coding responses are code-type
-                return { text: aiText, isCode: false, codeLang: '' };
+                return { text: aiText || '[No text in response]', isCode: false, codeLang: '' };
 
             } catch (err) {
-                console.error('API Error:', err);
-                // Return error as plain text (not code)
-                return { text: `Error: ${err.message}`, isCode: false, codeLang: '' };
+                console.error('API Exception:', err);
+                const msg = 'Network or API error: ' + (err?.message || err);
+                addMessage('assistant', msg, false, '');
+                return { text: msg, isCode: false, codeLang: '' };
             }
         }
 
