@@ -250,8 +250,8 @@
     <script>
         // API Configuration
         // Insert your API key directly here (not visible on screen)
-        const API_KEY = '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';
-        const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+        const API_KEY = 'AIzaSyCjTxy9ljtt6bCUDwSgWiPts3ZYLkSuYi8';
+        const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
         function showModal() {
             document.getElementById('settingsModal').classList.remove('hidden');
@@ -590,13 +590,30 @@
 
         // Gemini / OpenRouter wrapper — replaced to use OpenRouter chat/completions format
         async function callAPI(userPrompt) {
-            // Basic API key check
-            if (!API_KEY || API_KEY === '' || API_KEY.startsWith('YOUR_')) {
-                const msg = 'API key is missing or invalid. Set API_KEY in the app.';
+            // Basic checks
+            if (!userPrompt || !String(userPrompt).trim()) {
+                const msg = 'Empty prompt.';
+                console.warn(msg);
+                return { text: msg, isCode: false, codeLang: '' };
+            }
+            if (!API_KEY || API_KEY.startsWith('YOUR_') || API_KEY.length < 10) {
+                const msg = 'API key missing or invalid. Set API_KEY in the app or use a server-side proxy.';
                 console.error(msg);
                 addMessage('assistant', msg, false, '');
                 return { text: msg, isCode: false, codeLang: '' };
             }
+
+            // Rate guard (client-side)
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps || [];
+            const now = Date.now();
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps.filter(ts => now - ts < 60_000);
+            const LOCAL_MAX_PER_MIN = 20;
+            if (window.__tabu_request_timestamps.length >= LOCAL_MAX_PER_MIN) {
+                const waitMsg = 'Local rate limit: please wait a moment before sending more requests.';
+                addMessage('assistant', waitMsg, false, '');
+                return { text: waitMsg, isCode: false, codeLang: '' };
+            }
+            window.__tabu_request_timestamps.push(now);
 
             const uiMax = parseInt(document.getElementById('maxTokens').value, 10) || 20000;
             const maxTokens = Math.min(uiMax, 300000);
@@ -615,130 +632,105 @@
             const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
             const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
 
-            // Build OpenRouter-compatible messages array
-            const messages = [
-                { role: "system", content: [{ type: "text", text: "You are TABU AI. Be helpful, concise, and do not repeat role markers." }] },
-                { role: "user", content: [{ type: "text", text: promptToSend }] }
-            ];
-
-            const apiUrl = API_URL || 'https://openrouter.ai/api/v1/chat/completions';
+            const apiUrl = `${API_URL}?key=${API_KEY}`;
             const payload = {
-                model: "gpt-4o-mini", // adjust to model you have access to on OpenRouter
-                messages,
-                temperature: Math.max(0, Math.min(2, temperature)),
-                max_tokens: Math.min(maxTokens, 120000)
+                contents: [{ parts: [{ text: promptToSend }] }],
+                generationConfig: { maxOutputTokens: maxTokens, temperature }
             };
 
-            // Simple local throttle
-            window.__tabu_request_timestamps = window.__tabu_request_timestamps || [];
-            const now = Date.now();
-            window.__tabu_request_timestamps = window.__tabu_request_timestamps.filter(ts => now - ts < 60_000);
-            const LOCAL_MAX_PER_MIN = 20;
-            if (window.__tabu_request_timestamps.length >= LOCAL_MAX_PER_MIN) {
-                const msg = 'Local throttling: too many requests. Wait a moment.';
-                addMessage('assistant', msg, false, '');
-                return { text: msg, isCode: false, codeLang: '' };
-            }
-            window.__tabu_request_timestamps.push(now);
+            // Retries for transient errors (429/5xx)
+            const MAX_RETRIES = 3;
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const res = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-            try {
-                const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
-                    },
-                    body: JSON.stringify(payload)
-                });
+                    const raw = await res.text().catch(() => '');
+                    if (!res.ok) {
+                        console.error('API HTTP error', res.status, raw);
+                        let bodyJson = null;
+                        try { bodyJson = JSON.parse(raw); } catch (e) { /* ignore */ }
 
-                const bodyText = await res.text().catch(() => '');
-                // handle HTTP errors early
-                if (!res.ok) {
-                    console.error('API HTTP error', res.status, bodyText);
-                    let bodyJson = null;
-                    try { bodyJson = JSON.parse(bodyText); } catch (e) { /* ignore */ }
+                        // Quota / rate limit handling
+                        if (res.status === 429) {
+                            const detail = (bodyJson?.error?.message) ? bodyJson.error.message : raw;
+                            // if quota appears zero for region, stop retrying
+                            const quotaMeta = bodyJson?.error?.details?.find(d => d['@type']?.includes('google.rpc.ErrorInfo'))?.metadata || {};
+                            if (quotaMeta?.quota_limit_value === '0') {
+                                const msg = 'Quota exhausted for this project/region. Enable billing or request quota increase in Cloud Console.';
+                                addMessage('assistant', msg, false, '');
+                                window.__tabu_quota_exhausted = true;
+                                return { text: msg, isCode: false, codeLang: '' };
+                            }
+                            if (attempt < MAX_RETRIES) {
+                                const backoff = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 300);
+                                await new Promise(r => setTimeout(r, backoff));
+                                continue;
+                            }
+                            const msg = `Rate limit exceeded (429). ${detail || ''}`;
+                            addMessage('assistant', msg, false, '');
+                            return { text: msg, isCode: false, codeLang: '' };
+                        }
 
-                    if (res.status === 401) {
-                        const msg = 'Authentication failed (401). Check your API key.';
-                        addMessage('assistant', msg, false, '');
-                        return { text: msg, isCode: false, codeLang: '' };
+                        if (res.status === 403) {
+                            const msg = 'Access denied (403). Check API key permissions and billing for the project.';
+                            addMessage('assistant', msg, false, '');
+                            return { text: msg, isCode: false, codeLang: '' };
+                        }
+
+                        // other client errors: surface message
+                        const errmsg = bodyJson?.error?.message || raw || `HTTP ${res.status}`;
+                        addMessage('assistant', `API Error: ${errmsg}`, false, '');
+                        return { text: `API Error: ${errmsg}`, isCode: false, codeLang: '' };
                     }
-                    if (res.status === 403) {
-                        const msg = 'Access denied (403). Ensure the API key has permission and billing is enabled.';
-                        addMessage('assistant', msg, false, '');
-                        return { text: msg, isCode: false, codeLang: '' };
-                    }
-                    if (res.status === 429) {
-                        const detail = bodyJson?.error?.message || bodyText || '';
-                        const msg = `Rate limit / quota error (429). ${detail} Try again later or reduce request frequency.`;
-                        addMessage('assistant', msg, false, '');
-                        return { text: msg, isCode: false, codeLang: '' };
+
+                    // parse JSON
+                    let data;
+                    try { data = JSON.parse(raw); } catch (e) { data = null; }
+
+                    console.log('API raw response:', data);
+
+                    // extract text (Generative Language API: candidates[].content.parts[].text)
+                    const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || (data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join(' ') || '') || '';
+
+                    const cleaned = String(aiText || '').trim();
+
+                    // handle code blocks
+                    const blocks = extractCodeBlocks(cleaned);
+                    if (blocks && blocks.length) {
+                        const combined = blocks.map(b => {
+                            const tag = b.lang && b.lang !== 'code' ? b.lang : '';
+                            return (tag ? `\`\`\`${tag}\n${b.code}\n\`\`\`` : `\`\`\`\n${b.code}\n\`\`\``);
+                        }).join('\n\n');
+                        return { text: combined, isCode: true, codeLang: '' };
                     }
 
-                    const msg = `API Error: HTTP ${res.status} ${res.statusText}${bodyText ? ' - ' + bodyText : ''}`;
+                    if (wantsFiles && cleaned) {
+                        return { text: `\`\`\`text\n${cleaned}\n\`\`\``, isCode: true, codeLang: 'text' };
+                    }
+
+                    return { text: cleaned || '[No text in response]', isCode: false, codeLang: '' };
+
+                } catch (err) {
+                    console.error('API Exception:', err);
+                    if (attempt < MAX_RETRIES) {
+                        const backoff = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 300);
+                        await new Promise(r => setTimeout(r, backoff));
+                        continue;
+                    }
+                    const msg = 'Network or API error: ' + (err?.message || err);
                     addMessage('assistant', msg, false, '');
                     return { text: msg, isCode: false, codeLang: '' };
                 }
-
-                // parse successful response
-                let data;
-                try { data = JSON.parse(bodyText); } catch (e) { data = null; }
-
-                console.log('API raw response:', data);
-
-                // Robust extraction for OpenRouter / ChatCompletions-like response
-                let aiText = '';
-
-                // 1) OpenRouter typical: choices[0].message.content -> array of content blocks
-                const choice = data?.choices?.[0];
-                if (choice?.message) {
-                    const content = choice.message.content;
-                    if (Array.isArray(content)) {
-                        aiText = content.map(c => c?.text || c?.content || '').filter(Boolean).join('\n\n');
-                    } else if (typeof content === 'string') {
-                        aiText = content;
-                    } else if (content && typeof content === 'object') {
-                        aiText = content.text || '';
-                    }
-                }
-
-                // 2) fallback: choices[0].text (older format)
-                if (!aiText && choice?.text) aiText = choice.text;
-
-                // 3) fallback: top-level 'output' or 'result' or 'message'
-                if (!aiText) {
-                    if (data?.output_text) aiText = data.output_text;
-                    else if (Array.isArray(data?.output)) {
-                        aiText = data.output.map(o => (o?.content || []).map(c => c.text || '').join('')).join('\n\n');
-                    } else if (typeof data?.message === 'string') {
-                        aiText = data.message;
-                    }
-                }
-
-                aiText = String(aiText || '').trim();
-
-                // Detect code fences and return accordingly
-                const blocks = extractCodeBlocks(aiText);
-                if (blocks && blocks.length) {
-                    const combined = blocks.map(b => {
-                        const tag = b.lang && b.lang !== 'code' ? b.lang : '';
-                        return (tag ? `\`\`\`${tag}\n${b.code}\n\`\`\`` : `\`\`\`\n${b.code}\n\`\`\``);
-                    }).join('\n\n');
-                    return { text: combined, isCode: true, codeLang: '' };
-                }
-
-                if (wantsFiles && aiText.trim()) {
-                    return { text: `\`\`\`text\n${aiText}\n\`\`\``, isCode: true, codeLang: 'text' };
-                }
-
-                return { text: aiText || '[No text in response]', isCode: false, codeLang: '' };
-
-            } catch (err) {
-                console.error('API Exception:', err);
-                const msg = 'Network or API error: ' + (err?.message || err);
-                addMessage('assistant', msg, false, '');
-                return { text: msg, isCode: false, codeLang: '' };
             }
+
+            // fallback
+            const fallbackMsg = 'Unhandled API error.';
+            addMessage('assistant', fallbackMsg, false, '');
+            return { text: fallbackMsg, isCode: false, codeLang: '' };
         }
 
         async function sendMessage(e) {
