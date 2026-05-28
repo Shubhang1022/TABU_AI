@@ -19,6 +19,11 @@ app.use(express.json({ limit: '10mb' }));
 // Serve static files (index.html and assets)
 app.use(express.static(path.join(__dirname)));
 
+// Explicitly serve index.html at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Proxy endpoint — keeps API key server-side
 app.post('/api/chat', async (req, res) => {
   try {
