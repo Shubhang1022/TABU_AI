@@ -1,7 +1,7 @@
 {
   "name": "tabu-ai-proxy",
   "version": "1.0.0",
-  "description": "Proxy server for TABU-AI to keep Groq/OpenRouter API key server-side",
+  "description": "Proxy server for TABU-AI",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,9 +12,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.0.0",
     "express": "^4.18.2",
-    "gh": "^2.8.9",
     "mongoose": "^9.6.3",
-    "node-fetch": "^2.6.7",
-    "uuid": "^14.0.0"
+    "uuid": "9.0.1"
   }
 }
