@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
@@ -57,9 +58,20 @@ async function connectMongo() {
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname)));
 
-// ── Session middleware ────────────────────────────────────────
+// Static files — resolve relative to this file for Vercel compatibility
+const staticDir = path.resolve(__dirname);
+app.use(express.static(staticDir));
+
+// Serve index.html at root
+app.get('/', (req, res) => {
+  const htmlPath = path.join(staticDir, 'index.html');
+  if (fs.existsSync(htmlPath)) {
+    res.sendFile(htmlPath);
+  } else {
+    res.status(404).send('index.html not found');
+  }
+});
 // userId = permanent cookie identifying the browser (never changes)
 // chatId  = active chat session (changes when user starts a new chat)
 app.use((req, res, next) => {
@@ -121,9 +133,6 @@ async function saveMessages(sessionId, userId, userMsg, assistantMsg, type = 'te
 }
 
 // ── Routes ────────────────────────────────────────────────────
-
-// Serve index.html
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // GET /api/sessions — list all chats for this user
 app.get('/api/sessions', async (req, res) => {
