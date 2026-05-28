@@ -248,20 +248,33 @@
 
 
     <script>
-        // API Configuration — key is kept server-side, calls go through /api/chat proxy
-        const API_PROXY = '/api/chat';
+        // API endpoints — all keys are server-side
+        const API_PROXY        = '/api/chat';
+        const API_VISION_PROXY = '/api/vision';
+        const API_SPEECH_PROXY = '/api/speech';
+        const API_HISTORY      = '/api/history';
 
-
-        
-        function showModal() {
-            document.getElementById('settingsModal').classList.remove('hidden');
+        // ── Load chat history from MongoDB on page load ──────────────
+        async function loadHistory() {
+            try {
+                const res = await fetch(API_HISTORY);
+                if (!res.ok) return;
+                const data = await res.json();
+                const messages = data?.messages || [];
+                if (!messages.length) return;
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = ''; // clear welcome message
+                messages.forEach(m => {
+                    addMessage(m.role, m.content, false, '');
+                });
+            } catch (err) {
+                console.warn('Could not load history:', err);
+            }
         }
 
-        function hideModal() {
-            document.getElementById('settingsModal').classList.add('hidden');
-        }
-
-        function clearChat() {
+        // ── Clear chat + MongoDB history ─────────────────────────────
+        async function clearChat() {
+            try { await fetch('/api/history', { method: 'DELETE' }); } catch (e) {}
             document.getElementById('chatContainer').innerHTML = '';
             addMessage('assistant', "Chat cleared! Ready for new messages.");
         }
@@ -628,14 +641,14 @@
                 "Do not include any explanation or prose outside the code fences."
             ].join(' ') : '';
 
-            const basePrompt = FORCE_CODE_INSTRUCTION ? (FORCE_CODE_INSTRUCTION + "\n\n" + userPrompt) : userPrompt;
-            const approxMaxChars = Math.min(200000, Math.max(4000, Math.floor(maxTokens * 3)));
-            const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
-            const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
+            // History is managed server-side via MongoDB — just send the current message
+            const messageToSend = FORCE_CODE_INSTRUCTION
+                ? (FORCE_CODE_INSTRUCTION + "\n\n" + userPrompt)
+                : userPrompt;
 
             const apiUrl = API_PROXY;
             const payload = {
-                messages: [{ role: 'user', content: promptToSend }],
+                message: messageToSend,
                 maxTokens,
                 temperature
             };
@@ -754,10 +767,10 @@
             document.getElementById('tempValue').textContent = this.value;
         });
 
-        // Initialize
+        // Initialize — load chat history from MongoDB
         document.addEventListener('DOMContentLoaded', function () {
-            console.log('TABU AI initialized with API support');
-            console.log('Configure your API endpoint in the settings above');
+            console.log('TABU AI initialized');
+            loadHistory();
         });
 
         // ------------------------------
@@ -910,59 +923,54 @@
         async function sendFileFromComposer(caption = '') {
             if (!pendingFile) return;
             const file = pendingFile;
-            // clear composer preview / pending state immediately (UI)
             clearPendingFile();
 
-            // Instruction to avoid code output for file-based prompts unless user asks for code
-            const NO_CODE_INSTRUCTION = "Please respond in plain text. Do NOT return code blocks or code fences unless I explicitly request code.";
-
-            // If image: show image + caption in chat as user's message, then send combined prompt
+            // ── Image → Gemini Vision API ─────────────────────────────
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = async () => {
                     const dataUrl = reader.result;
-                    // Display image + caption as user's message in chat
+                    // Strip the data URL prefix to get raw base64
+                    const base64 = dataUrl.split(',')[1];
+                    const mimeType = file.type;
+
                     addImageMessage('user', dataUrl, caption || `Uploaded image: ${file.name}`);
+                    addMessage('assistant', '⏳ Analyzing image...');
 
-                    // show assistant loading placeholder
-                    addMessage('assistant', '⏳ Processing image and prompt...');
-
-                    // Build prompt including user's caption and the image data URL
-                    const promptParts = [];
-                    promptParts.push(NO_CODE_INSTRUCTION);
-                    if (caption && caption.trim()) {
-                        promptParts.push(`User message: ${caption.trim()}`);
-                    } else {
-                        promptParts.push(`User uploaded an image named "${file.name}".`);
+                    try {
+                        const res = await fetch(API_VISION_PROXY, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message: caption || 'Analyze this image and describe what you see.',
+                                imageBase64: base64,
+                                mimeType
+                            })
+                        });
+                        const data = await res.json();
+                        const chatContainer = document.getElementById('chatContainer');
+                        if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                        const aiText = data?.text || data?.error || 'No response';
+                        addMessage('assistant', aiText, false, '');
+                    } catch (err) {
+                        const chatContainer = document.getElementById('chatContainer');
+                        if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                        addMessage('assistant', 'Error analyzing image: ' + err.message, false, '');
                     }
-                    promptParts.push('Please analyze the image and respond, or ask clarifying questions if needed.');
-                    promptParts.push('DATA_URL_START');
-                    promptParts.push(dataUrl);
-                    promptParts.push('DATA_URL_END');
-                    const prompt = promptParts.join('\n\n');
-
-                    // Call API and replace loading message with response
-                    const response = await callAPI(prompt);
-                    const chatContainer = document.getElementById('chatContainer');
-                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
-                    addMessage('assistant', response.text, response.isCode, response.codeLang);
                 };
                 reader.readAsDataURL(file);
                 return;
             }
 
-            // If text file: include content + caption together
+            // ── Text file → regular chat API ─────────────────────────
             if (file.type.startsWith('text/') || /\.(md|txt|js|py|java|c|cpp|html|css)$/i.test(file.name)) {
                 const reader = new FileReader();
                 reader.onload = async () => {
                     const text = String(reader.result);
-                    // Show trimmed preview as user's message
                     const previewText = caption && caption.trim() ? `${caption}\n\n[Attached file: ${file.name}]` : `Uploaded file: ${file.name}`;
                     addMessage('user', previewText + '\n\n' + (text.length > 1000 ? text.slice(0, 1000) + '\n\n[truncated]' : text));
-
-                    addMessage('assistant', '⏳ Processing text file and prompt...');
-
-                    const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
+                    addMessage('assistant', '⏳ Processing...');
+                    const prompt = `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
                     const response = await callAPI(prompt);
                     const chatContainer = document.getElementById('chatContainer');
                     if (chatContainer.lastChild) chatContainer.lastChild.remove();
@@ -972,21 +980,9 @@
                 return;
             }
 
-            // Other binary files: send data URL + caption
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const dataUrl = reader.result || '';
-                addMessage('user', caption && caption.trim() ? `${caption}\n\nUploaded file: ${file.name}` : `Uploaded file: ${file.name} (binary)`);
-
-                addMessage('assistant', '⏳ Processing file and prompt...');
-
-                const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nUploaded binary file: ${file.name}\n\nDATA_URL_START\n${dataUrl}\nDATA_URL_END\n\nIf you cannot process the binary, ask clarifying questions.`;
-                const response = await callAPI(prompt);
-                const chatContainer = document.getElementById('chatContainer');
-                if (chatContainer.lastChild) chatContainer.lastChild.remove();
-                addMessage('assistant', response.text, response.isCode, response.codeLang);
-            };
-            reader.readAsDataURL(file);
+            // ── Other files ───────────────────────────────────────────
+            addMessage('user', caption && caption.trim() ? `${caption}\n\nUploaded file: ${file.name}` : `Uploaded file: ${file.name} (binary)`);
+            addMessage('assistant', 'Sorry, I can only process images and text files directly.');
         }
 
         // Modify wrapper sendMessage so when a file is pending it will send both the typed prompt and the file together.
@@ -1259,23 +1255,24 @@
             var statusEl = document.getElementById('voiceStatus');
             if (statusEl) statusEl.textContent = 'Processing...';
             addMessage('assistant', '⏳ Processing...');
-            var response;
+            var responseText = '';
             try {
-                response = await callAPI(transcript);
+                // Voice uses Gemini via /api/speech
+                const res = await fetch(API_SPEECH_PROXY, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transcript })
+                });
+                const data = await res.json();
+                responseText = data?.text || data?.error || 'No response';
             } catch (err) {
-                response = { text: 'Error contacting API.', isCode: false, codeLang: '' };
+                responseText = 'Error contacting API: ' + err.message;
             }
             var chatContainer = document.getElementById('chatContainer');
             if (chatContainer && chatContainer.lastChild) chatContainer.lastChild.remove();
-            addMessage('assistant', response.text, response.isCode, response.codeLang);
+            addMessage('assistant', responseText, false, '');
             if (statusEl) statusEl.textContent = 'Speaking...';
-            if (response.isCode) {
-                var plain = String(response.text).replace(/```[\s\S]*?```/g, '').trim();
-                var summary = plain ? plain.slice(0, 300) : 'I returned code. Check the chat for details.';
-                await speakAssistantText('I returned code. ' + summary);
-            } else {
-                await speakAssistantText(response.text);
-            }
+            await speakAssistantText(responseText);
             if (_voiceOverlayActive) {
                 if (statusEl) statusEl.textContent = 'Listening...';
                 setTimeout(function () { if (_voiceOverlayActive) startListeningOnce(); }, 250);
