@@ -248,11 +248,8 @@
 
 
     <script>
-        // API Configuration
-        // Insert your API key directly here (not visible on screen)
-        const API_KEY = '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';
-        const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-        const API_MODEL = 'google/gemini-2.5-flash';
+        // API Configuration — key is kept server-side, calls go through /api/chat proxy
+        const API_PROXY = '/api/chat';
 
 
         
@@ -421,29 +418,23 @@
             const systemPrompt = `You are an assistant that adds clear, concise inline comments to code. Return ONLY the commented code inside triple backticks. Keep comments idiomatic for the language (${languageNote.trim()}).`;
             const userContent = `${systemPrompt}\n\nPlease add inline comments (brief, helpful) to this code and return only the commented code in a triple-backtick block:\n\`\`\`${lang}\n${code}\n\`\`\``;
 
-            const apiUrl = API_URL;
+            const apiUrl = API_PROXY;
             const payload = {
-                model: API_MODEL,
                 messages: [{ role: 'user', content: userContent }],
-                max_tokens: 1024,
+                maxTokens: 1024,
                 temperature: 0.2
             };
 
             try {
                 const res = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`,
-                        'HTTP-Referer': window.location.href,
-                        'X-Title': 'TABU AI'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 console.log('Annotate API raw response:', data);
-                const aiText = data?.choices?.[0]?.message?.content || '';
+                const aiText = data?.text || data?.choices?.[0]?.message?.content || '';
                 const codeObj = extractFirstCodeBlock(aiText);
                 if (codeObj) return codeObj.code;
                 return aiText;
@@ -606,8 +597,8 @@
                 console.warn(msg);
                 return { text: msg, isCode: false, codeLang: '' };
             }
-            if (!API_KEY || API_KEY.startsWith('YOUR_') || API_KEY.length < 10) {
-                const msg = 'API key missing or invalid. Set API_KEY in the app or use a server-side proxy.';
+            if (!API_PROXY) {
+                const msg = 'Proxy endpoint not configured.';
                 console.error(msg);
                 addMessage('assistant', msg, false, '');
                 return { text: msg, isCode: false, codeLang: '' };
@@ -642,11 +633,10 @@
             const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
             const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
 
-            const apiUrl = API_URL;
+            const apiUrl = API_PROXY;
             const payload = {
-                model: API_MODEL,
                 messages: [{ role: 'user', content: promptToSend }],
-                max_tokens: maxTokens,
+                maxTokens,
                 temperature
             };
 
@@ -656,12 +646,7 @@
                 try {
                     const res = await fetch(apiUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${API_KEY}`,
-                            'HTTP-Referer': window.location.href,
-                            'X-Title': 'TABU AI'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
@@ -701,8 +686,8 @@
 
                     console.log('API raw response:', data);
 
-                    // extract text (OpenRouter/OpenAI format)
-                    const aiText = data?.choices?.[0]?.message?.content || '';
+                    // extract text — proxy returns { text } directly
+                    const aiText = data?.text || data?.choices?.[0]?.message?.content || '';
 
                     const cleaned = String(aiText || '').trim();
 

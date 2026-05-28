@@ -4,31 +4,33 @@ const path = require('path');
 require('dotenv').config();
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/responses';
-const API_KEY = process.env.GROQ_API_KEY;
+const API_URL = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
+const API_KEY = process.env.OPENROUTER_API_KEY;
+const API_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 
 if (!API_KEY) {
-  console.error('Missing GROQ_API_KEY in .env');
+  console.error('Missing OPENROUTER_API_KEY in .env');
   process.exit(1);
 }
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
-// Serve static files (your index.html and assets)
+// Serve static files (index.html and assets)
 app.use(express.static(path.join(__dirname)));
 
-// Simple /api/generate proxy to Groq (keeps key server-side)
-app.post('/api/generate', async (req, res) => {
+// Proxy endpoint — keeps API key server-side
+app.post('/api/chat', async (req, res) => {
   try {
-    const { prompt, maxTokens = 20000, temperature = 0.7 } = req.body || {};
-    if (!prompt) return res.status(400).json({ error: 'prompt required' });
+    const { messages, maxTokens = 8000, temperature = 0.7 } = req.body || {};
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages array required' });
+    }
 
     const payload = {
-      // Groq/OpenAI-compat style responses endpoint payload
-      input: prompt,
-      // If Groq expects different fields change here accordingly
-      max_output_tokens: Math.min(Number(maxTokens) || 20000, 200000),
+      model: API_MODEL,
+      messages,
+      max_tokens: Math.min(Number(maxTokens) || 8000, 16000),
       temperature: Number(temperature) || 0.7
     };
 
@@ -36,41 +38,33 @@ app.post('/api/generate', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`
+        'Authorization': `Bearer ${API_KEY}`,
+        'HTTP-Referer': 'https://tabu-ai.vercel.app',
+        'X-Title': 'TABU AI'
       },
       body: JSON.stringify(payload)
     });
 
     const raw = await r.text();
+
     if (!r.ok) {
       let body = raw;
       try { body = JSON.parse(raw); } catch (e) {}
+      console.error('OpenRouter error:', r.status, body);
       return res.status(r.status).json({ error: body });
     }
 
     let data = null;
     try { data = JSON.parse(raw); } catch (e) { data = { raw }; }
 
-    // try to extract assistant text from common response shapes
-    let aiText = '';
-    // Groq (OpenAI-compatible) -> maybe data.output_text or data.candidates[...] etc.
-    if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      aiText = data.candidates[0].content.parts[0].text;
-    } else if (data?.output_text) {
-      aiText = data.output_text;
-    } else if (data?.text) {
-      aiText = data.text;
-    } else if (typeof data === 'string') {
-      aiText = data;
-    } else {
-      aiText = JSON.stringify(data);
-    }
+    // Extract assistant text from OpenAI-compatible response
+    const aiText = data?.choices?.[0]?.message?.content || '';
 
-    return res.json({ text: aiText, raw: data });
+    return res.json({ text: aiText });
   } catch (err) {
-    console.error('Proxy error', err);
+    console.error('Proxy error:', err);
     return res.status(500).json({ error: String(err) });
   }
 });
 
-app.listen(PORT, () => console.log(`Proxy + static server running: http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`TABU AI server running: http://localhost:${PORT}`));
