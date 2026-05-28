@@ -13,7 +13,7 @@ const GEMINI_URL        = process.env.GEMINI_API_URL  || 'https://generativelang
 const GEMINI_VISION_URL = process.env.GEMINI_VISION_URL || GEMINI_URL;
 const OR_KEY            = process.env.OPENROUTER_API_KEY;
 const OR_URL            = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
-const OR_MODEL          = process.env.OPENROUTER_MODEL   || 'google/gemini-2.5-flash';
+const OR_MODEL          = process.env.OPENROUTER_MODEL   || 'google/gemma-4-31b-it:free';
 const MONGO_URI         = process.env.MONGODB_URI;
 
 // ── MongoDB (lazy connect — safe for serverless) ──────────────
@@ -198,10 +198,10 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
-// POST /api/chat — OpenRouter
+// POST /api/chat — Gemini (text chat)
 app.post('/api/chat', async (req, res) => {
   try {
-    if (!OR_KEY) return res.status(500).json({ error: 'OPENROUTER_API_KEY not set on server' });
+    if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not set on server' });
 
     const { message, maxTokens = 8000, temperature = 0.7 } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message required' });
@@ -210,26 +210,27 @@ app.post('/api/chat', async (req, res) => {
     const session = await getSession(req.sessionId, req.userId);
     const history = session ? session.messages.slice(-20) : [];
 
-    const messages = [
-      ...history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message }
+    // Build Gemini contents array from history + new message
+    const contents = [
+      ...history.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      })),
+      { role: 'user', parts: [{ text: message }] }
     ];
 
     const payload = {
-      model: OR_MODEL,
-      messages,
-      max_tokens: Math.min(Number(maxTokens) || 8000, 16000),
-      temperature: Number(temperature) || 0.7
+      contents,
+      generationConfig: {
+        maxOutputTokens: Math.min(Number(maxTokens) || 8000, 16000),
+        temperature: Number(temperature) || 0.7
+      }
     };
 
-    const r = await fetch(OR_URL, {
+    const url = `${GEMINI_URL}?key=${GEMINI_KEY}`;
+    const r = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OR_KEY}`,
-        'HTTP-Referer': 'https://tabu-ai.vercel.app',
-        'X-Title': 'TABU AI'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
@@ -240,7 +241,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const data = JSON.parse(raw);
-    const aiText = data?.choices?.[0]?.message?.content || '';
+    const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     await saveMessages(req.sessionId, req.userId, message, aiText, 'text');
     res.json({ text: aiText });
