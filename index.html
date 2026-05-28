@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TABU-AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="shortcut icon" href="NAME_LOGO.png" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            scrollbar-width: none;
+        }
+
+        body {
+            height: 100vh;
+        }
+
+        #voiceBackdrop {
+            display: none;
+        }
+
+        #voiceOverlay.flex {
+            display: flex;
+        }
+
+        #voiceCircle.speaking {
+            animation: pulseScale 900ms ease-in-out infinite;
+            box-shadow: 0 8px 40px rgba(99, 102, 241, 0.35);
+            transform: scale(1.06);
+        }
+
+        @keyframes pulseScale {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.12) rotate(2deg);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .typing-indicator span {
+            animation: pulse 1s infinite;
+        }
+
+        .message-appear {
+            animation: messageAppear 0.3s ease-out;
+        }
+
+        @keyframes messageAppear {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .footer {
+
+            width: 100%;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* overlay visuals */
+        #voiceBackdrop {
+            display: none;
+        }
+
+        #voiceOverlay.flex {
+            display: flex;
+        }
+
+        #voiceCircle.speaking {
+            animation: pulseScale 900ms ease-in-out infinite;
+            box-shadow: 0 8px 40px rgba(99, 102, 241, 0.35);
+            transform: scale(1.06);
+        }
+
+        @keyframes pulseScale {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.12) rotate(2deg);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-400 min-h-screen ">
+    <div class="max-w-6xl mx-auto px-4 ">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8">
+            <div class="flex items-center space-x-4 ">
+                <div class="w-12 h-12 rounded-full bg-gray-400 overflow-hidden flex items-center justify-center">
+                    <img src="NAME_LOGO.png" alt="TABU AI logo" class="w-10 h-10 object-cover" />
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold gradient-text">TABU AI</h1>
+                    <p class="text-gray-500 text-sm">AI-Assistant</p>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <!-- <button onclick="showModal()"  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Settings</button> -->
+                <button onclick="clearChat()"
+                    class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Clear
+                    Chat</button>
+            </div>
+        </header>
+        <hr>
+        <br>
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+            <div id="chatContainer" class="p-6 h-96 overflow-y-auto">
+                <div class="message-appear flex items-start mb-4">
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                        <p>HELLO! how can i assist you?</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="border-t border-gray-200 p-4 bg-gray-50">
+                <form id="messageForm" class="flex flex-col space-y-2" onsubmit="sendMessage(event)">
+                    <div class="flex items-center space-x-2">
+                        <input id="messageInput" type="text" placeholder="Type your message..."
+                            class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Attach button triggers attach menu (choose image or document) -->
+                        <button type="button" id="attachBtn" onclick="showAttachMenu(event)" title="Attach file"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+
+                        <!-- Mic button: open voice overlay -->
+                        <button type="button" id="micBtn" onclick="openVoiceOverlay()" title="Open voice chat"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button type="submit"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition" title="upload">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+
+                        <!-- Hidden file input for images/docs; accept will be set dynamically -->
+                        <input id="fileInput" type="file"
+                            accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
+                            placeholder="inpurt text..." aria-label="File input"
+                            onchange="handleFileInputChange(event)" class="hidden">
+                    </div>
+
+                    <!-- Attach menu (hidden, shown when paperclip clicked) -->
+                    <div id="attachMenu" class="hidden absolute z-50 bg-white shadow rounded-md py-2 w-44">
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                            onclick="chooseAttachType('image')">
+                            <i class="fas fa-image mr-2 text-gray-600"></i> Upload Image
+                        </button>
+                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                            onclick="chooseAttachType('document')">
+                            <i class="fas fa-file-alt mr-2 text-gray-600"></i> Upload Document
+                        </button>
+                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
+                            onclick="hideAttachMenu()">
+                            Cancel
+                        </button>
+                    </div>
+
+                    <!-- Composer file preview (shows selected file before sending) -->
+                    <div id="filePreview" class="pl-2"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Settings</h2>
+                    <button onclick="hideModal()" title="time" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label for="maxTokens" class="block text-sm font-medium mb-1">Max Tokens</label>
+                        <!-- Increased default and max to allow very large generations -->
+                        <input type="number" id="maxTokens" name="maxTokens" value="8000" min="50" max="16000"
+                            title="Maximum tokens to allow in model generation" placeholder="e.g. 8000"
+                            aria-label="Max Tokens" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    </div>
+                    <div>
+                        <label for="temperature" class="block text-sm font-medium mb-1">Temperature</label>
+                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7" class="w-full"
+                            title="Temperature" aria-label="Temperature slider">
+                        <span id="tempValue" class="text-sm text-gray-600">0.7</span>
+                    </div>
+
+                    <!-- Memory toggle: enable/disable using local chat history as context -->
+                    <div>
+                        <label class="inline-flex items-center space-x-2">
+                            <input id="memoryEnabled" type="checkbox" checked class="rounded border-gray-300">
+                            <span class="text-sm">Enable local chat memory (use history as context)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="footer min-h-2">
+            <h1> &#169;AI BY SHUBH-DEV</h1>
+        </footer>
+    </div>
+
+
+    <script>
+        // API Configuration
+        // Insert your API key directly here (not visible on screen)
+        const API_KEY = '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';
+        const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+        const API_MODEL = 'google/gemini-2.5-flash';
+
+
+        
+        function showModal() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function clearChat() {
+            document.getElementById('chatContainer').innerHTML = '';
+            addMessage('assistant', "Chat cleared! Ready for new messages.");
+        }
+
+        // Escape HTML for safe innerHTML insertion
+        function escapeHtml(str = '') {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /* ----------------------------
+           Code block extraction helpers
+           - extractCodeBlocks: returns all triple-backtick blocks found
+           - extractFirstCodeBlock: convenience for older callers
+        ---------------------------- */
+        function extractCodeBlocks(text = '') {
+            const blocks = [];
+            // matchAll is non-stateful and returns all code fences
+            const regex = /```([a-zA-Z0-9-]*)\n([\s\S]*?)```/g;
+            for (const m of text.matchAll(regex)) {
+                blocks.push({ lang: m[1] || 'code', code: m[2] });
+            }
+            return blocks;
+        }
+        function extractFirstCodeBlock(text = '') {
+            const blocks = extractCodeBlocks(text);
+            return blocks.length ? blocks[0] : null;
+        }
+
+        // Added: compatibility helper used elsewhere (avoid undefined function errors)
+        function extractCodeBlock(text = '') {
+            // keep API of previous code: return single {code, lang} or null
+            return extractFirstCodeBlock(text);
+        }
+
+        /* ----------------------------
+           addMessage now supports:
+           - plain text
+           - single code string (isCode=true + codeLang)
+           - content that itself contains multiple triple-backtick blocks:
+             these will be split into separate code cards (HTML/JS/CSS, etc.)
+        ---------------------------- */
+        function addMessage(role, content, isCode = false, codeLang = '') {
+            const chatContainer = document.getElementById('chatContainer');
+
+            // Helper to render one code card
+            function appendCodeCard(role, code, lang) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message-appear flex items-start mb-4';
+                if (role === 'user') {
+                    messageDiv.innerHTML = `
+                      <div class="ml-auto bg-gray-900 p-3 text-white rounded-xl rounded-tr-none max-w-3xl w-full overflow-x-auto">
+                        <div class="font-medium text-gray-300 mb-1">You ${lang ? `<span class="text-xs text-gray-500">[${escapeHtml(lang)}]</span>` : ''}</div>
+                        <pre class="text-green-200 mt-1 text-sm whitespace-pre overflow-x-auto rounded-lg p-3" style="font-family: 'Fira Mono','Consolas',monospace; line-height:1.4; background:#0b0b0b;">${escapeHtml(code)}</pre>
+                      </div>
+                    `;
+                } else {
+                    messageDiv.innerHTML = `
+                      <div class="bg-black p-3 text-white rounded-xl rounded-tl-none max-w-3xl w-full overflow-x-auto">
+                        <div class="font-medium text-green-600 flex justify-between items-center">
+                          <div>TABU AI ${lang ? `<span class="text-xs text-gray-300">LANGUAGE-[${escapeHtml(lang)}]</span>` : ''}</div>
+                          <div class="space-x-2">
+                            <button class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded" onclick="annotateCodeFromElement(this)" data-lang="${escapeHtml(lang)}">Add Comments</button>
+                            <button class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded" onclick="copyCodeFromElement(this)">Copy</button>
+                          </div>
+                        </div>
+                        <pre class="text-green-200 mt-4 text-sm whitespace-pre overflow-x-auto rounded-lg p-3" style="font-family: 'Fira Mono','Consolas',monospace; line-height:1.4; background:#18181b;">${escapeHtml(code)}</pre>
+                      </div>
+                    `;
+                }
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            // If content already contains triple-backtick code blocks, split and render each separately
+            if (isCode) {
+                const blocks = extractCodeBlocks(content);
+                if (blocks.length) {
+                    // Render each code block separately (preserves language separation)
+                    for (const b of blocks) {
+                        appendCodeCard(role, b.code, b.lang);
+                    }
+                    return;
+                }
+
+                // If no explicit fences but caller provided isCode and a language -> render single card
+                appendCodeCard(role, content, codeLang);
+                return;
+            }
+
+            // If not code, render text with heading/subheading detection
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-appear flex items-start mb-4';
+
+            if (role === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="ml-auto bg-gray-100 p-3 rounded-xl rounded-tr-none max-w-3xl">
+                        <div class="font-medium text-gray-500 mb-1">You</div>
+                        <p>${escapeHtml(content)}</p>
+                    </div>
+                `;
+            } else {
+                // Split into blocks by double newline to detect headings/subheadings
+                const blocks = String(content).split(/\n\s*\n/).map(b => b.trim()).filter(b => b !== '');
+                const rendered = blocks.map(block => {
+                    // Heading syntax: Markdown-style (#, ##, ###)
+                    const h1 = block.match(/^#\s+(.+)/);
+                    if (h1) {
+                        return `<div class="mb-2 text-xl font-bold">${escapeHtml(h1[1])}</div>`;
+                    }
+                    const h2 = block.match(/^##\s+(.+)/);
+                    if (h2) {
+                        return `<div class="mb-2 text-lg font-semibold">${escapeHtml(h2[1])}</div>`;
+                    }
+                    const h3 = block.match(/^###\s+(.+)/);
+                    if (h3) {
+                        return `<div class="mb-2 text-base font-semibold">${escapeHtml(h3[1])}</div>`;
+                    }
+                    // If a single short line ending with colon, treat as subheading
+                    if (/^[^\n]{1,120}:$/.test(block)) {
+                        return `<div class="mb-1 font-semibold">${escapeHtml(block)}</div>`;
+                    }
+                    // Otherwise render paragraph(s), preserve line breaks
+                    const paraLines = block.split('\n').map(l => l.trim()).filter(l => l !== '');
+                    // If lines look like numbered list, keep numbering bold for first token
+                    const paraRendered = paraLines.map(line => {
+                        const numMatch = line.match(/^(\d+\.)\s+(.*)/);
+                        if (numMatch) {
+                            return `<div class="mb-1"><span class="font-semibold">${escapeHtml(numMatch[1])}</span> ${escapeHtml(numMatch[2])}</div>`;
+                        }
+                        return `<div class="mb-1">${escapeHtml(line)}</div>`;
+                    }).join('');
+                    return `<div class="mb-3">${paraRendered}</div>`;
+                }).join('');
+
+                messageDiv.innerHTML = `
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-2 flex flex-col">TABU AI</div>
+                        ${rendered}
+                    </div>
+                `;
+            }
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Update annotateCodeViaAPI to use extractFirstCodeBlock (non-global)
+        async function annotateCodeViaAPI(code, lang = '') {
+            const languageNote = lang ? `${lang} ` : '';
+            const systemPrompt = `You are an assistant that adds clear, concise inline comments to code. Return ONLY the commented code inside triple backticks. Keep comments idiomatic for the language (${languageNote.trim()}).`;
+            const userContent = `${systemPrompt}\n\nPlease add inline comments (brief, helpful) to this code and return only the commented code in a triple-backtick block:\n\`\`\`${lang}\n${code}\n\`\`\``;
+
+            const apiUrl = API_URL;
+            const payload = {
+                model: API_MODEL,
+                messages: [{ role: 'user', content: userContent }],
+                max_tokens: 1024,
+                temperature: 0.2
+            };
+
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'HTTP-Referer': window.location.href,
+                        'X-Title': 'TABU AI'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                console.log('Annotate API raw response:', data);
+                const aiText = data?.choices?.[0]?.message?.content || '';
+                const codeObj = extractFirstCodeBlock(aiText);
+                if (codeObj) return codeObj.code;
+                return aiText;
+            } catch (err) {
+                console.error('Annotate API Error:', err);
+                return `// Error annotating code: ${err.message}\n${code}`;
+            }
+        }
+
+        // Added: handler to request annotated code for a specific message card
+        async function annotateCodeFromElement(btn) {
+            try {
+                btn.disabled = true;
+                const lang = btn.getAttribute('data-lang') || '';
+                const messageCard = btn.closest('.message-appear');
+                if (!messageCard) { btn.disabled = false; return; }
+                const pre = messageCard.querySelector('pre');
+                if (!pre) { btn.disabled = false; return; }
+                const originalCode = pre.textContent || '';
+
+                // show loading text while calling API
+                pre.textContent = '...adding comments, please wait...';
+
+                const commented = await annotateCodeViaAPI(originalCode, lang);
+
+                // place returned commented code (use textContent to avoid HTML injection)
+                pre.textContent = commented;
+                btn.disabled = false;
+            } catch (err) {
+                console.error('annotateCodeFromElement error', err);
+                btn.disabled = false;
+            }
+        }
+
+        // Added: copy code button handler
+        function copyCodeFromElement(btn) {
+            try {
+                const messageCard = btn.closest('.message-appear');
+                if (!messageCard) return;
+                const pre = messageCard.querySelector('pre');
+                if (!pre) return;
+                const codeText = pre.textContent || '';
+                navigator.clipboard.writeText(codeText).then(() => {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = 'Copied';
+                    setTimeout(() => btn.innerHTML = orig, 1200);
+                }).catch(err => {
+                    console.error('Copy failed', err);
+                });
+            } catch (err) {
+                console.error('copyCodeFromElement error', err);
+            }
+        }
+
+        /* ==============================
+           Local chat memory (persistent)
+           - Saves recent assistant/user messages to localStorage
+           - buildPromptWithMemory() prepends recent memory to user prompts
+           - Does NOT save very large items (images/data-URLs) to avoid token bloat
+           ============================== */
+        const MEMORY_KEY = 'tabuai_chat_memory_v1';
+        const MEMORY_MAX_ENTRIES = 300;        // keep last N small to control size
+        const MEMORY_MAX_CONTENT_CHARS = 4000; // don't persist very large contents (images, huge files)
+
+        // Load memory array (safely)
+        function loadMemory() {
+            try {
+                return JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        // Save a single memory entry (role: 'user'|'assistant', content string)
+        function saveMemoryEntry(role, content, isCode = false) {
+            // Only save if memory is enabled in UI
+            try {
+                if (!document.getElementById('memoryEnabled')?.checked) return;
+            } catch { /* ignore */ }
+            if (!content) return;
+            // skip saving obvious ephemeral placeholders and huge payloads
+            const lower = String(content).toLowerCase();
+            if (lower.includes('⏳ processing') || lower.includes('chat cleared') || lower.includes('...adding comments')) return;
+            if (content.includes('DATA_URL_START') || content.length > MEMORY_MAX_CONTENT_CHARS) return;
+
+            const mem = loadMemory();
+            mem.push({ role, content, isCode: !!isCode, ts: Date.now() });
+            // trim oldest entries
+            while (mem.length > MEMORY_MAX_ENTRIES) mem.shift();
+            try {
+                localStorage.setItem(MEMORY_KEY, JSON.stringify(mem));
+            } catch (e) {
+                console.warn('Failed to save memory:', e);
+            }
+        }
+
+        // Clear persistent memory on demand
+        function clearMemory() {
+            localStorage.removeItem(MEMORY_KEY);
+            // small UI feedback (do not automatically save this feedback)
+            addMessage('assistant', 'Memory cleared.', false, '');
+        }
+
+        // Build a single prompt by prepending recent memory entries (oldest->newest)
+        // maxChars controls how much context to include (approx. tokens * 3)
+        function buildPromptWithMemory(userPrompt, maxChars = 20000) {
+            try {
+                if (!document.getElementById('memoryEnabled')?.checked) return userPrompt;
+            } catch { return userPrompt; }
+
+            const mem = loadMemory();
+            if (!mem.length) return userPrompt;
+
+            // include newest entries but present them oldest->newest
+            // NOTE: do NOT include bracketed role tokens like "[ASSISTANT]" in the context lines,
+            // because the model may echo those markers verbatim. Use clear "User:" / "Assistant:" labels
+            // and keep a short directive to the model to avoid repeating role markers in its reply.
+            const parts = ['CONTEXT_START'];
+            parts.push('Instruction: The following are prior messages. When you reply, do NOT repeat role markers like [ASSISTANT] or [USER]; respond naturally.');
+            let used = 0;
+            const collected = [];
+            for (let i = mem.length - 1; i >= 0; i--) {
+                const e = mem[i];
+                const prefix = (e.role === 'assistant') ? 'Assistant: ' : 'User: ';
+                const line = `${prefix}${e.content}`;
+                if (used + line.length > maxChars) break;
+                collected.push(line);
+                used += line.length;
+            }
+            collected.reverse();
+            parts.push(...collected);
+            parts.push('CONTEXT_END', '', `USER_PROMPT: ${userPrompt}`);
+            return parts.join('\n\n');
+        }
+
+        // Hook persistence into addMessage: call saveMemoryEntry when messages are rendered.
+        // To avoid breaking existing behavior, wrap existing addMessage function after it's defined.
+        (function attachMemoryHook() {
+            // Ensure addMessage exists
+            const orig = addMessage;
+            if (typeof orig !== 'function') return;
+            window.addMessage = function (role, content, isCode = false, codeLang = '') {
+                // call the original renderer
+                orig(role, content, isCode, codeLang);
+                try {
+                    // save only meaningful messages (skip loading placeholders)
+                    saveMemoryEntry(role, content, !!isCode);
+                } catch (e) { console.warn('saveMemoryEntry failed', e); }
+            };
+        })();
+
+        // Expose clearMemory for console/testing (optional)
+        window.clearMemory = clearMemory;
+
+        // Gemini / OpenRouter wrapper — replaced to use OpenRouter chat/completions format
+        async function callAPI(userPrompt) {
+            // Basic checks
+            if (!userPrompt || !String(userPrompt).trim()) {
+                const msg = 'Empty prompt.';
+                console.warn(msg);
+                return { text: msg, isCode: false, codeLang: '' };
+            }
+            if (!API_KEY || API_KEY.startsWith('YOUR_') || API_KEY.length < 10) {
+                const msg = 'API key missing or invalid. Set API_KEY in the app or use a server-side proxy.';
+                console.error(msg);
+                addMessage('assistant', msg, false, '');
+                return { text: msg, isCode: false, codeLang: '' };
+            }
+
+            // Rate guard (client-side)
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps || [];
+            const now = Date.now();
+            window.__tabu_request_timestamps = window.__tabu_request_timestamps.filter(ts => now - ts < 60_000);
+            const LOCAL_MAX_PER_MIN = 20;
+            if (window.__tabu_request_timestamps.length >= LOCAL_MAX_PER_MIN) {
+                const waitMsg = 'Local rate limit: please wait a moment before sending more requests.';
+                addMessage('assistant', waitMsg, false, '');
+                return { text: waitMsg, isCode: false, codeLang: '' };
+            }
+            window.__tabu_request_timestamps.push(now);
+
+            const uiMax = parseInt(document.getElementById('maxTokens').value, 10) || 8000;
+            const maxTokens = Math.min(uiMax, 16000);
+            const temperature = parseFloat(document.getElementById('temperature').value) || 0.2;
+
+            const wantsFiles = /(?:\b(html|css|js|javascript|create|generate|index\.html|script\.js|styles\.css|files?)\b)/i.test(userPrompt);
+            const FORCE_CODE_INSTRUCTION = wantsFiles ? [
+                "RETURN FORMAT INSTRUCTIONS:",
+                "Return ONLY the requested code files. For each file include a single-line HTML comment with the filename immediately before its fence,",
+                "then a triple-backtick fence with the correct language tag (e.g. ```html, ```css, ```javascript).",
+                "Do not include any explanation or prose outside the code fences."
+            ].join(' ') : '';
+
+            const basePrompt = FORCE_CODE_INSTRUCTION ? (FORCE_CODE_INSTRUCTION + "\n\n" + userPrompt) : userPrompt;
+            const approxMaxChars = Math.min(200000, Math.max(4000, Math.floor(maxTokens * 3)));
+            const MEMORY_AVOID_ECHO = "System Note: Do NOT echo or repeat context role markers such as [ASSISTANT] or [USER] in your response. Reply directly to the user's prompt.";
+            const promptToSend = MEMORY_AVOID_ECHO + "\n\n" + buildPromptWithMemory(basePrompt, approxMaxChars);
+
+            const apiUrl = API_URL;
+            const payload = {
+                model: API_MODEL,
+                messages: [{ role: 'user', content: promptToSend }],
+                max_tokens: maxTokens,
+                temperature
+            };
+
+            // Retries for transient errors (429/5xx)
+            const MAX_RETRIES = 3;
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const res = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${API_KEY}`,
+                            'HTTP-Referer': window.location.href,
+                            'X-Title': 'TABU AI'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const raw = await res.text().catch(() => '');
+                    if (!res.ok) {
+                        console.error('API HTTP error', res.status, raw);
+                        let bodyJson = null;
+                        try { bodyJson = JSON.parse(raw); } catch (e) { /* ignore */ }
+
+                        if (res.status === 429) {
+                            const detail = bodyJson?.error?.message || raw;
+                            if (attempt < MAX_RETRIES) {
+                                const backoff = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 300);
+                                await new Promise(r => setTimeout(r, backoff));
+                                continue;
+                            }
+                            const msg = `Rate limit exceeded (429). ${detail || ''}`;
+                            addMessage('assistant', msg, false, '');
+                            return { text: msg, isCode: false, codeLang: '' };
+                        }
+
+                        if (res.status === 403) {
+                            const msg = 'Access denied (403). Check your OpenRouter API key.';
+                            addMessage('assistant', msg, false, '');
+                            return { text: msg, isCode: false, codeLang: '' };
+                        }
+
+                        // other client errors: surface message
+                        const errmsg = bodyJson?.error?.message || raw || `HTTP ${res.status}`;
+                        addMessage('assistant', `API Error: ${errmsg}`, false, '');
+                        return { text: `API Error: ${errmsg}`, isCode: false, codeLang: '' };
+                    }
+
+                    // parse JSON
+                    let data;
+                    try { data = JSON.parse(raw); } catch (e) { data = null; }
+
+                    console.log('API raw response:', data);
+
+                    // extract text (OpenRouter/OpenAI format)
+                    const aiText = data?.choices?.[0]?.message?.content || '';
+
+                    const cleaned = String(aiText || '').trim();
+
+                    // handle code blocks
+                    const blocks = extractCodeBlocks(cleaned);
+                    if (blocks && blocks.length) {
+                        const combined = blocks.map(b => {
+                            const tag = b.lang && b.lang !== 'code' ? b.lang : '';
+                            return (tag ? `\`\`\`${tag}\n${b.code}\n\`\`\`` : `\`\`\`\n${b.code}\n\`\`\``);
+                        }).join('\n\n');
+                        return { text: combined, isCode: true, codeLang: '' };
+                    }
+
+                    if (wantsFiles && cleaned) {
+                        return { text: `\`\`\`text\n${cleaned}\n\`\`\``, isCode: true, codeLang: 'text' };
+                    }
+
+                    return { text: cleaned || '[No text in response]', isCode: false, codeLang: '' };
+
+                } catch (err) {
+                    console.error('API Exception:', err);
+                    if (attempt < MAX_RETRIES) {
+                        const backoff = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 300);
+                        await new Promise(r => setTimeout(r, backoff));
+                        continue;
+                    }
+                    const msg = 'Network or API error: ' + (err?.message || err);
+                    addMessage('assistant', msg, false, '');
+                    return { text: msg, isCode: false, codeLang: '' };
+                }
+            }
+
+            // fallback
+            const fallbackMsg = 'Unhandled API error.';
+            addMessage('assistant', fallbackMsg, false, '');
+            return { text: fallbackMsg, isCode: false, codeLang: '' };
+        }
+
+        async function sendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message
+            addMessage('user', message);
+            input.value = '';
+
+            // Show loading state
+            addMessage('assistant', '⏳ Processing...');
+
+            // Call API
+            const response = await callAPI(message);
+
+            // Replace loading message with actual response
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+        }
+
+        // Temperature slider update
+        document.getElementById('temperature').addEventListener('input', function () {
+            document.getElementById('tempValue').textContent = this.value;
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('TABU AI initialized with API support');
+            console.log('Configure your API endpoint in the settings above');
+        });
+
+        // ------------------------------
+        // File upload / attach support
+        // ------------------------------
+        // Holds selected file until user sends or cancels
+        let pendingFile = null;
+
+        // Open native file picker
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+
+        // Handle file selection and show preview in composer area
+        function handleFileInputChange(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            pendingFile = file;
+            showComposerFilePreview(file);
+        }
+
+        // Render a small composer preview for the selected file with Send / Remove actions
+        function showComposerFilePreview(file) {
+            const preview = document.getElementById('filePreview');
+            preview.innerHTML = ''; // reset
+
+            const container = document.createElement('div');
+            container.className = 'flex items-start space-x-3 bg-white p-2 rounded-md border';
+
+            const meta = document.createElement('div');
+            meta.className = 'flex-1';
+
+            // File title and size
+            const title = document.createElement('div');
+            title.className = 'font-medium text-sm';
+            title.textContent = file.name + ' · ' + ((file.size / 1024) < 1024 ? (file.size / 1024).toFixed(1) + ' KB' : (file.size / 1024 / 1024).toFixed(2) + ' MB');
+            meta.appendChild(title);
+
+            // Small preview area (image thumbnail or truncated text / icon)
+            const previewArea = document.createElement('div');
+            previewArea.className = 'mt-2 text-xs text-gray-600';
+
+            // For images show thumbnail
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = document.createElement('img');
+                    img.src = reader.result;
+                    img.alt = file.name;
+                    img.style.maxWidth = '140px';
+                    img.style.maxHeight = '90px';
+                    img.className = 'rounded-sm border';
+                    previewArea.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            } else if (file.type.startsWith('text/') || /\.(md|txt|js|py|java|c|cpp|html|css)$/i.test(file.name)) {
+                // Show first few lines of text files
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const textPreview = document.createElement('pre');
+                    textPreview.className = 'max-h-40 overflow-auto text-xs bg-gray-50 p-2 rounded';
+                    textPreview.textContent = (String(reader.result)).slice(0, 600);
+                    previewArea.appendChild(textPreview);
+                };
+                reader.readAsText(file);
+            } else {
+                // Generic icon for other types (PDF, binary docs)
+                const icon = document.createElement('div');
+                icon.textContent = file.type || 'File';
+                icon.className = 'text-sm';
+                previewArea.appendChild(icon);
+            }
+
+            meta.appendChild(previewArea);
+
+            // Actions: send / remove
+            const actions = document.createElement('div');
+            actions.className = 'flex flex-col space-y-2';
+
+            const sendBtn = document.createElement('button');
+            sendBtn.type = 'button';
+            sendBtn.className = 'text-xs px-3 py-1 bg-blue-500 text-white rounded';
+            sendBtn.textContent = 'Send';
+            sendBtn.onclick = () => sendFileFromComposer();
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'text-xs px-3 py-1 bg-gray-100 rounded';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = () => clearPendingFile();
+
+            actions.appendChild(sendBtn);
+            actions.appendChild(removeBtn);
+
+            container.appendChild(meta);
+            container.appendChild(actions);
+            preview.appendChild(container);
+        }
+
+        // Clear pending file and composer preview
+        function clearPendingFile() {
+            pendingFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('filePreview').innerHTML = '';
+        }
+
+        /**
+         * Add an image message to the chat area.
+         * role: 'user' | 'assistant'
+         * imageUrl: data URL or remote URL
+         * caption: optional text to show with the image
+         */
+        function addImageMessage(role, imageUrl, caption = '') {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-appear flex items-start mb-4';
+
+            if (role === 'user') {
+                // user image on right
+                messageDiv.innerHTML = `
+                    <div class="ml-auto bg-gray-100 p-3 rounded-xl rounded-tr-none max-w-3xl">
+                        <div class="font-medium text-gray-500 mb-1">You</div>
+                        <div class="flex flex-col space-y-2">
+                            <img src="${imageUrl}" alt="${escapeHtml(caption)}" style="max-width:320px; max-height:240px;" class="rounded border" />
+                            ${caption ? `<div class="text-sm text-gray-700">${escapeHtml(caption)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // assistant image on left
+                messageDiv.innerHTML = `
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                        <div class="flex flex-col space-y-2">
+                            <img src="${imageUrl}" alt="${escapeHtml(caption)}" style="max-width:320px; max-height:240px;" class="rounded border" />
+                            ${caption ? `<div class="text-sm text-gray-700">${escapeHtml(caption)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        /**
+         * Send the selected file to the assistant together with an optional user caption.
+         * - caption: text the user typed (can be empty)
+         */
+        async function sendFileFromComposer(caption = '') {
+            if (!pendingFile) return;
+            const file = pendingFile;
+            // clear composer preview / pending state immediately (UI)
+            clearPendingFile();
+
+            // Instruction to avoid code output for file-based prompts unless user asks for code
+            const NO_CODE_INSTRUCTION = "Please respond in plain text. Do NOT return code blocks or code fences unless I explicitly request code.";
+
+            // If image: show image + caption in chat as user's message, then send combined prompt
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    const dataUrl = reader.result;
+                    // Display image + caption as user's message in chat
+                    addImageMessage('user', dataUrl, caption || `Uploaded image: ${file.name}`);
+
+                    // show assistant loading placeholder
+                    addMessage('assistant', '⏳ Processing image and prompt...');
+
+                    // Build prompt including user's caption and the image data URL
+                    const promptParts = [];
+                    promptParts.push(NO_CODE_INSTRUCTION);
+                    if (caption && caption.trim()) {
+                        promptParts.push(`User message: ${caption.trim()}`);
+                    } else {
+                        promptParts.push(`User uploaded an image named "${file.name}".`);
+                    }
+                    promptParts.push('Please analyze the image and respond, or ask clarifying questions if needed.');
+                    promptParts.push('DATA_URL_START');
+                    promptParts.push(dataUrl);
+                    promptParts.push('DATA_URL_END');
+                    const prompt = promptParts.join('\n\n');
+
+                    // Call API and replace loading message with response
+                    const response = await callAPI(prompt);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            // If text file: include content + caption together
+            if (file.type.startsWith('text/') || /\.(md|txt|js|py|java|c|cpp|html|css)$/i.test(file.name)) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    const text = String(reader.result);
+                    // Show trimmed preview as user's message
+                    const previewText = caption && caption.trim() ? `${caption}\n\n[Attached file: ${file.name}]` : `Uploaded file: ${file.name}`;
+                    addMessage('user', previewText + '\n\n' + (text.length > 1000 ? text.slice(0, 1000) + '\n\n[truncated]' : text));
+
+                    addMessage('assistant', '⏳ Processing text file and prompt...');
+
+                    const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nAttached file (${file.name}) contents:\n\n${text}\n\nPlease analyze and respond.`;
+                    const response = await callAPI(prompt);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+                reader.readAsText(file);
+                return;
+            }
+
+            // Other binary files: send data URL + caption
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const dataUrl = reader.result || '';
+                addMessage('user', caption && caption.trim() ? `${caption}\n\nUploaded file: ${file.name}` : `Uploaded file: ${file.name} (binary)`);
+
+                addMessage('assistant', '⏳ Processing file and prompt...');
+
+                const prompt = NO_CODE_INSTRUCTION + "\n\n" + `User message: ${caption}\n\nUploaded binary file: ${file.name}\n\nDATA_URL_START\n${dataUrl}\nDATA_URL_END\n\nIf you cannot process the binary, ask clarifying questions.`;
+                const response = await callAPI(prompt);
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                addMessage('assistant', response.text, response.isCode, response.codeLang);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Modify wrapper sendMessage so when a file is pending it will send both the typed prompt and the file together.
+        const originalSendMessage = (function () {
+            // capture the previously defined sendMessage implementation (if present)
+            // If not present, fallback to a simple sender that calls callAPI directly.
+            try {
+                return sendMessage;
+            } catch {
+                return async function (e) {
+                    if (e && e.preventDefault) e.preventDefault();
+                    const input = document.getElementById('messageInput');
+                    const m = input.value.trim();
+                    if (!m) return;
+                    addMessage('user', m);
+                    input.value = '';
+                    addMessage('assistant', '⏳ Processing...');
+                    const response = await callAPI(m);
+                    const chatContainer = document.getElementById('chatContainer');
+                    if (chatContainer.lastChild) chatContainer.lastChild.remove();
+                    addMessage('assistant', response.text, response.isCode, response.codeLang);
+                };
+            }
+        })();
+
+        // New sendMessage wrapper: if pendingFile exists, include current input text as caption when sending the file.
+        async function sendMessage(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            // If a file is pending, send the file + caption together
+            if (pendingFile) {
+                // capture caption now and clear input
+                const caption = message;
+                input.value = '';
+                await sendFileFromComposer(caption);
+                return;
+            }
+
+            // No pending file: proceed with normal text flow
+            if (!message) return;
+            addMessage('user', message);
+            input.value = '';
+            addMessage('assistant', '⏳ Processing...');
+            const response = await callAPI(message);
+            const chatContainer = document.getElementById('chatContainer');
+            if (chatContainer.lastChild) chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+        }
+
+        // ------------------------------
+        // Attach menu: show options for Image or Document
+        // ------------------------------
+
+        // Show the attach menu near the attach button
+        function showAttachMenu(event) {
+            const menu = document.getElementById('attachMenu');
+            const btn = document.getElementById('attachBtn');
+
+            // Get button position
+            const rect = btn.getBoundingClientRect();
+
+            // Show the menu (required so we can measure its height)
+            menu.classList.remove('hidden');
+
+            // Temporarily hide visibility while we compute position to avoid flicker
+            menu.style.visibility = 'hidden';
+            menu.style.left = `${rect.left + window.scrollX}px`;
+            // place temporarily to compute height
+            menu.style.top = `${rect.top + window.scrollY - 9999}px`;
+
+            // Force layout and measure
+            const menuHeight = menu.offsetHeight || 0;
+
+            // Calculate position above the button with 8px gap
+            let top = rect.top + window.scrollY - menuHeight - 8;
+
+            // If there's not enough space above, fall back to placing below the button
+            if (top < 8) {
+                top = rect.bottom + window.scrollY + 8;
+            }
+
+            // Apply final position and make visible
+            menu.style.left = `${rect.left + window.scrollX}px`;
+            menu.style.top = `${top}px`;
+            menu.style.visibility = 'visible';
+
+            // Stop propagation so document click handler does not immediately hide it
+            event.stopPropagation();
+        }
+
+        // Hide the attach menu
+        function hideAttachMenu() {
+            document.getElementById('attachMenu').classList.add('hidden');
+        }
+
+        // Choose attach type and open the file picker with appropriate accept types
+        function chooseAttachType(type) {
+            hideAttachMenu();
+            const input = document.getElementById('fileInput');
+            if (type === 'image') {
+                input.accept = 'image/*';
+            } else {
+                // documents: pdf, docx, doc, txt, markdown, and common code/text types
+                input.accept = 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*,.md,.txt';
+            }
+            // Trigger native picker
+            input.click();
+        }
+
+        // Hide menu when clicking elsewhere on the page
+        document.addEventListener('click', function (e) {
+            const menu = document.getElementById('attachMenu');
+            const btn = document.getElementById('attachBtn');
+            if (!menu.classList.contains('hidden')) {
+                // if click was outside menu and attach button, hide menu
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    hideAttachMenu();
+                }
+            }
+        });
+    </script>
+
+    <!-- Voice overlay (insert before closing </body>) -->
+<div id="voiceOverlay" class="hidden fixed inset-0 z-50 items-center justify-center">
+    <div id="voiceBackdrop" class="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm"></div>
+    <div class="relative z-60 flex flex-col items-center justify-center">
+        <div id="voicePanel" class="bg-white rounded-xl p-6 w-80 flex flex-col items-center space-y-4 shadow-lg">
+            <div id="voiceCircle" class="w-28 h-28 rounded-full bg-gradient-to-r from-blue-400 to-purple-600 flex items-center justify-center transform transition-transform">
+                <i id="voiceWave" class="fas fa-waveform text-white text-2xl"></i>
+            </div>
+            <div id="voiceStatus" class="text-sm text-gray-700">Initializing...</div>
+            <div class="flex space-x-2">
+                <button id="voiceStopBtn" class="px-3 py-1 bg-red-500 text-white rounded">Stop</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // safe globals for overlay voice flow
+    let _voiceRecognition = null;
+    let _voiceOverlayActive = false;
+    let _voiceProcessing = false;
+    const VOICE_LANG = 'en-US';
+
+    // Initialize SpeechRecognition (no HTML injected here)
+    function initOverlayRecognition() {
+        if (_voiceRecognition) return;
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            const s = document.getElementById('voiceStatus');
+            if (s) s.textContent = 'Speech recognition not supported in this browser.';
+            return;
+        }
+        _voiceRecognition = new SR();
+        _voiceRecognition.lang = VOICE_LANG;
+        _voiceRecognition.interimResults = false;
+        _voiceRecognition.maxAlternatives = 1;
+
+        _voiceRecognition.addEventListener('error', function (ev) {
+            console.warn('Recognition error', ev);
+            if (_voiceOverlayActive) {
+                const s = document.getElementById('voiceStatus');
+                if (s) s.textContent = 'Recognition error';
+            }
+        });
+
+        _voiceRecognition.addEventListener('result', async function (ev) {
+            if (!_voiceOverlayActive) return;
+            try {
+                const last = ev.results[ev.results.length - 1];
+                const transcript = String(last[0].transcript || '').trim();
+                if (!transcript) {
+                    if (_voiceOverlayActive) startListeningOnce();
+                    return;
+                }
+                try { _voiceRecognition.stop(); } catch (e) {}
+                await handleUserSpeechTurn(transcript);
+            } catch (e) {
+                console.error('recognition result error', e);
+                if (_voiceOverlayActive) startListeningOnce();
+            }
+        });
+
+        // no-op on end: controlled restarts are handled in the flow
+        _voiceRecognition.addEventListener('end', function () {});
+    }
+
+    async function startListeningOnce() {
+        if (!_voiceOverlayActive || !_voiceRecognition) return;
+        try {
+            _voiceProcessing = false;
+            const s = document.getElementById('voiceStatus');
+            if (s) s.textContent = 'Listening...';
+            _voiceRecognition.start();
+        } catch (e) {
+            console.warn('startListeningOnce failed', e);
+            setTimeout(function () { if (_voiceOverlayActive) startListeningOnce(); }, 500);
+        }
+    }
+
+    // Summarize plain assistant text for speaking (strip code fences, limit sentences/chars)
+    function summarizeForSpeech(text, maxSentences = 2, maxChars = 240) {
+        if (!text) return '';
+        // strip code fences and common role markers the model might echo
+        let plain = String(text).replace(/```[\s\S]*?```/g, '').replace(/\[ASSISTANT\]|\[USER\]/gi, '').trim();
+        plain = plain.replace(/\s+/g, ' ');
+        if (plain.length <= maxChars) return plain;
+
+        // Split into sentences; join up to maxSentences while respecting maxChars
+        const sentences = plain.match(/[^.!?]+[.!?]*/g) || [];
+        if (sentences.length) {
+            let out = '';
+            for (let i = 0; i < Math.min(maxSentences, sentences.length); i++) {
+                if ((out + sentences[i]).length > maxChars) break;
+                out += sentences[i] + ' ';
+            }
+            out = out.trim();
+            if (out) return out.length <= maxChars ? out : out.slice(0, maxChars).trim() + '...';
+        }
+
+        // Fallback: truncate at a safe word boundary
+        let truncated = plain.slice(0, maxChars);
+        const lastSpace = truncated.lastIndexOf(' ');
+        if (lastSpace > Math.floor(maxChars * 0.4)) truncated = truncated.slice(0, lastSpace);
+        return truncated.trim() + '...';
+    }
+
+    // Speak a short summary instead of the full response
+    function speakAssistantText(text) {
+        const summary = summarizeForSpeech(text);
+        return new Promise(function (resolve) {
+            if (!('speechSynthesis' in window) || !summary) { resolve(); return; }
+            var utter = new SpeechSynthesisUtterance(summary);
+            utter.lang = VOICE_LANG;
+            var circle = document.getElementById('voiceCircle');
+            if (circle) circle.classList.add('speaking');
+            utter.addEventListener('end', function () {
+                if (circle) circle.classList.remove('speaking');
+                resolve();
+            });
+            utter.addEventListener('start', function () {
+                try { if (_voiceRecognition) _voiceRecognition.abort(); } catch (e) {}
+            });
+            try { window.speechSynthesis.cancel(); } catch (e) {}
+            window.speechSynthesis.speak(utter);
+            // fallback timeout in case 'end' doesn't fire
+            var fallbackTimeout = Math.max(3000, summary.length * 60);
+            setTimeout(function () {
+                if (circle) circle.classList.remove('speaking');
+                resolve();
+            }, fallbackTimeout + 1500);
+        });
+    }
+
+    function removeSpeakingVisual() {
+        var circle = document.getElementById('voiceCircle');
+        if (circle) circle.classList.remove('speaking');
+    }
+
+    // main turn handler: send transcript to callAPI(), render chat, speak reply, then listen again
+    async function handleUserSpeechTurn(transcript) {
+        if (!_voiceOverlayActive) return;
+        _voiceProcessing = true;
+        try {
+            addMessage('user', transcript);
+            var statusEl = document.getElementById('voiceStatus');
+            if (statusEl) statusEl.textContent = 'Processing...';
+            addMessage('assistant', '⏳ Processing...');
+            var response;
+            try {
+                response = await callAPI(transcript);
+            } catch (err) {
+                response = { text: 'Error contacting API.', isCode: false, codeLang: '' };
+            }
+            var chatContainer = document.getElementById('chatContainer');
+            if (chatContainer && chatContainer.lastChild) chatContainer.lastChild.remove();
+            addMessage('assistant', response.text, response.isCode, response.codeLang);
+            if (statusEl) statusEl.textContent = 'Speaking...';
+            if (response.isCode) {
+                var plain = String(response.text).replace(/```[\s\S]*?```/g, '').trim();
+                var summary = plain ? plain.slice(0, 300) : 'I returned code. Check the chat for details.';
+                await speakAssistantText('I returned code. ' + summary);
+            } else {
+                await speakAssistantText(response.text);
+            }
+            if (_voiceOverlayActive) {
+                if (statusEl) statusEl.textContent = 'Listening...';
+                setTimeout(function () { if (_voiceOverlayActive) startListeningOnce(); }, 250);
+            } else {
+                if (statusEl) statusEl.textContent = 'Stopped';
+            }
+        } finally {
+            _voiceProcessing = false;
+        }
+    }
+
+    // expose open/stop functions globally so onclick works and no ReferenceError occurs
+    window.openVoiceOverlay = function () {
+        var overlay = document.getElementById('voiceOverlay');
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (!overlay) return;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        if (backdrop) backdrop.style.display = 'block';
+        _voiceOverlayActive = true;
+        var s = document.getElementById('voiceStatus');
+        if (s) s.textContent = 'Initializing voice...';
+        initOverlayRecognition();
+        // greet then start listening
+        (async function () {
+            await speakAssistantText("Hello! I'm listening. Say stop to end.");
+            if (_voiceOverlayActive) startListeningOnce();
+        })();
+    };
+
+    window.stopVoiceOverlay = function () {
+        _voiceOverlayActive = false;
+        try { if (_voiceRecognition) { _voiceRecognition.abort(); } } catch (e) {}
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+        var overlay = document.getElementById('voiceOverlay');
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (overlay) { overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+        if (backdrop) backdrop.style.display = 'none';
+        removeSpeakingVisual();
+        var s = document.getElementById('voiceStatus');
+        if (s) s.textContent = 'Voice chat stopped';
+    };
+
+    // wire stop button after DOM ready
+    document.addEventListener('DOMContentLoaded', function () {
+        var stopBtn = document.getElementById('voiceStopBtn');
+        if (stopBtn) stopBtn.addEventListener('click', window.stopVoiceOverlay, false);
+
+        // also close overlay on backdrop click
+        var backdrop = document.getElementById('voiceBackdrop');
+        if (backdrop) backdrop.addEventListener('click', function () {
+            window.stopVoiceOverlay();
+        }, false);
+    });
+
+    // cleanup on unload
+    window.addEventListener('beforeunload', function () {
+        try { if (_voiceRecognition) _voiceRecognition.abort(); } catch (e) {}
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+    });
+})();
+</script>
+</body>
+
+</html>
