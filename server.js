@@ -59,15 +59,22 @@ const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.use(cookieParser());
 
-// Static files — resolve relative to this file for Vercel compatibility
-const staticDir = path.resolve(__dirname);
-app.use(express.static(staticDir));
+// Read index.html once at startup
+let indexHtml = '';
+try {
+  indexHtml = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf8');
+} catch (e) {
+  console.error('Could not read index.html:', e.message);
+}
+
+// Serve static assets (images, etc.)
+app.use(express.static(path.resolve(__dirname)));
 
 // Serve index.html at root
 app.get('/', (req, res) => {
-  const htmlPath = path.join(staticDir, 'index.html');
-  if (fs.existsSync(htmlPath)) {
-    res.sendFile(htmlPath);
+  if (indexHtml) {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(indexHtml);
   } else {
     res.status(404).send('index.html not found');
   }
@@ -357,8 +364,8 @@ app.post('/api/speech', async (req, res) => {
   }
 });
 
-// Only listen locally
-if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+// Only listen locally — Vercel handles this via module.exports
+if (!process.env.VERCEL) {
   app.listen(PORT, () => console.log(`TABU AI running: http://localhost:${PORT}`));
 }
 
