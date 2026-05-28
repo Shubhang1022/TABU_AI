@@ -4,12 +4,11 @@ const path = require('path');
 require('dotenv').config();
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const API_URL = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
-const API_KEY = process.env.OPENROUTER_API_KEY;
-const API_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+const API_KEY = process.env.GEMINI_API_KEY;
+const API_URL = process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
-if (!API_KEY) {
-  console.error('Missing OPENROUTER_API_KEY in .env');
+if (!API_KEY || API_KEY === 'your_gemini_api_key_here') {
+  console.error('Missing GEMINI_API_KEY in .env');
   process.exit(1);
 }
 
@@ -24,7 +23,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Proxy endpoint — keeps API key server-side
+// Proxy endpoint — keeps Gemini API key server-side
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages, maxTokens = 8000, temperature = 0.7 } = req.body || {};
@@ -32,21 +31,22 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'messages array required' });
     }
 
+    // Convert OpenAI-style messages to Gemini format
+    const prompt = messages.map(m => m.content).join('\n\n');
+
     const payload = {
-      model: API_MODEL,
-      messages,
-      max_tokens: Math.min(Number(maxTokens) || 8000, 16000),
-      temperature: Number(temperature) || 0.7
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: Math.min(Number(maxTokens) || 8000, 16000),
+        temperature: Number(temperature) || 0.7
+      }
     };
 
-    const r = await fetch(API_URL, {
+    const url = `${API_URL}?key=${API_KEY}`;
+
+    const r = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': 'https://tabu-ai.vercel.app',
-        'X-Title': 'TABU AI'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
@@ -55,15 +55,15 @@ app.post('/api/chat', async (req, res) => {
     if (!r.ok) {
       let body = raw;
       try { body = JSON.parse(raw); } catch (e) {}
-      console.error('OpenRouter error:', r.status, body);
+      console.error('Gemini error:', r.status, body);
       return res.status(r.status).json({ error: body });
     }
 
     let data = null;
     try { data = JSON.parse(raw); } catch (e) { data = { raw }; }
 
-    // Extract assistant text from OpenAI-compatible response
-    const aiText = data?.choices?.[0]?.message?.content || '';
+    // Extract text from Gemini response
+    const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     return res.json({ text: aiText });
   } catch (err) {
