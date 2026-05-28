@@ -1,12 +1,7 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/chat", "destination": "/api/chat" },
-    { "source": "/api/vision", "destination": "/api/vision" },
-    { "source": "/api/speech", "destination": "/api/speech" },
-    { "source": "/api/history", "destination": "/api/history" },
-    { "source": "/api/sessions/(.*)", "destination": "/api/sessions" },
-    { "source": "/api/sessions", "destination": "/api/sessions" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/sessions/:path*", "destination": "/api/sessions" },
+    { "source": "/api/:path*", "destination": "/api/:path*" }
   ]
 }
