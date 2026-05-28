@@ -1,7 +1,8 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/sessions/:path*", "destination": "/api/sessions" },
-    { "source": "/api/:path*", "destination": "/api/:path*" }
+    { "source": "/api/sessions/new", "destination": "/api/sessions" },
+    { "source": "/api/sessions/switch", "destination": "/api/sessions" },
+    { "source": "/api/sessions/:id", "destination": "/api/sessions" }
   ]
 }
