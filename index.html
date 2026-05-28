@@ -15,6 +15,76 @@
 
         body {
             height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* ── Sidebar ── */
+        #sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #1e1e2e;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            transition: width 0.2s;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+        }
+
+        #sidebarList {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .chat-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #cdd6f4;
+            font-size: 13px;
+            transition: background 0.15s;
+            gap: 6px;
+        }
+
+        .chat-item:hover { background: #313244; }
+        .chat-item.active { background: #45475a; }
+
+        .chat-item-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chat-item-delete {
+            opacity: 0;
+            color: #f38ba8;
+            font-size: 11px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            transition: opacity 0.15s;
+            flex-shrink: 0;
+        }
+
+        .chat-item:hover .chat-item-delete { opacity: 1; }
+
+        /* ── Main area ── */
+        #mainArea {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: #e5e7eb;
         }
 
         #voiceBackdrop {
@@ -123,30 +193,54 @@
     </style>
 </head>
 
-<body class="bg-gray-400 min-h-screen ">
-    <div class="max-w-6xl mx-auto px-4 ">
+<body class="bg-gray-400 min-h-screen">
+
+    <!-- ── Sidebar ── -->
+    <div id="sidebar">
+        <div class="p-3 border-b border-gray-700">
+            <button onclick="newChat()"
+                class="w-full flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+        </div>
+        <div id="sidebarList">
+            <div class="text-gray-500 text-xs px-2 py-4 text-center">Loading chats...</div>
+        </div>
+        <div class="p-3 border-t border-gray-700 text-xs text-gray-500 text-center">
+            ©AI BY SHUBH-DEV
+        </div>
+    </div>
+
+    <!-- ── Main Area ── -->
+    <div id="mainArea">
+        <div class="flex-1 overflow-y-auto px-4 pt-4" style="max-height: calc(100vh - 130px);">
+
         <!-- Header -->
-        <header class="flex items-center justify-between mb-8">
-            <div class="flex items-center space-x-4 ">
-                <div class="w-12 h-12 rounded-full bg-gray-400 overflow-hidden flex items-center justify-center">
-                    <img src="NAME_LOGO.png" alt="TABU AI logo" class="w-10 h-10 object-cover" />
+        <header class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-3">
+                <button onclick="toggleSidebar()" class="p-2 rounded-full hover:bg-gray-300 transition" title="Toggle sidebar">
+                    <i class="fas fa-bars text-gray-600"></i>
+                </button>
+                <div class="w-10 h-10 rounded-full bg-gray-400 overflow-hidden flex items-center justify-center">
+                    <img src="NAME_LOGO.png" alt="TABU AI logo" class="w-8 h-8 object-cover" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold gradient-text">TABU AI</h1>
-                    <p class="text-gray-500 text-sm">AI-Assistant</p>
+                    <h1 class="text-xl font-bold gradient-text">TABU AI</h1>
+                    <p class="text-gray-500 text-xs" id="activeChatTitle">New Chat</p>
                 </div>
             </div>
             <div class="flex space-x-2">
-                <!-- <button onclick="showModal()"  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Settings</button> -->
                 <button onclick="clearChat()"
-                    class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">Clear
-                    Chat</button>
+                    class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-sm font-medium transition">
+                    <i class="fas fa-trash-alt mr-1"></i>Clear
+                </button>
             </div>
         </header>
         <hr>
         <br>
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
-            <div id="chatContainer" class="p-6 h-96 overflow-y-auto">
+
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-4">
+            <div id="chatContainer" class="p-6 overflow-y-auto" style="height: calc(100vh - 320px); min-height: 200px;">
                 <div class="message-appear flex items-start mb-4">
                     <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
                         <div class="font-medium text-blue-600 mb-1">TABU AI</div>
@@ -154,57 +248,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Input Area -->
-            <div class="border-t border-gray-200 p-4 bg-gray-50">
-                <form id="messageForm" class="flex flex-col space-y-2" onsubmit="sendMessage(event)">
-                    <div class="flex items-center space-x-2">
-                        <input id="messageInput" type="text" placeholder="Type your message..."
-                            class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <!-- Attach button triggers attach menu (choose image or document) -->
-                        <button type="button" id="attachBtn" onclick="showAttachMenu(event)" title="Attach file"
-                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-
-                        <!-- Mic button: open voice overlay -->
-                        <button type="button" id="micBtn" onclick="openVoiceOverlay()" title="Open voice chat"
-                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
-                            <i class="fas fa-microphone"></i>
-                        </button>
-                        <button type="submit"
-                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition" title="upload">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-
-                        <!-- Hidden file input for images/docs; accept will be set dynamically -->
-                        <input id="fileInput" type="file"
-                            accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
-                            placeholder="inpurt text..." aria-label="File input"
-                            onchange="handleFileInputChange(event)" class="hidden">
-                    </div>
-
-                    <!-- Attach menu (hidden, shown when paperclip clicked) -->
-                    <div id="attachMenu" class="hidden absolute z-50 bg-white shadow rounded-md py-2 w-44">
-                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
-                            onclick="chooseAttachType('image')">
-                            <i class="fas fa-image mr-2 text-gray-600"></i> Upload Image
-                        </button>
-                        <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
-                            onclick="chooseAttachType('document')">
-                            <i class="fas fa-file-alt mr-2 text-gray-600"></i> Upload Document
-                        </button>
-                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
-                            onclick="hideAttachMenu()">
-                            Cancel
-                        </button>
-                    </div>
-
-                    <!-- Composer file preview (shows selected file before sending) -->
-                    <div id="filePreview" class="pl-2"></div>
-                </form>
-            </div>
-        </div>
 
         <!-- Settings Modal -->
         <div id="settingsModal"
@@ -219,7 +262,6 @@
                 <div class="space-y-4">
                     <div>
                         <label for="maxTokens" class="block text-sm font-medium mb-1">Max Tokens</label>
-                        <!-- Increased default and max to allow very large generations -->
                         <input type="number" id="maxTokens" name="maxTokens" value="8000" min="50" max="16000"
                             title="Maximum tokens to allow in model generation" placeholder="e.g. 8000"
                             aria-label="Max Tokens" class="w-full border border-gray-300 rounded-md px-3 py-2">
@@ -230,21 +272,57 @@
                             title="Temperature" aria-label="Temperature slider">
                         <span id="tempValue" class="text-sm text-gray-600">0.7</span>
                     </div>
-
-                    <!-- Memory toggle: enable/disable using local chat history as context -->
                     <div>
                         <label class="inline-flex items-center space-x-2">
                             <input id="memoryEnabled" type="checkbox" checked class="rounded border-gray-300">
-                            <span class="text-sm">Enable local chat memory (use history as context)</span>
+                            <span class="text-sm">Enable chat memory</span>
                         </label>
                     </div>
                 </div>
             </div>
         </div>
-        <footer class="footer min-h-2">
-            <h1> &#169;AI BY SHUBH-DEV</h1>
-        </footer>
-    </div>
+
+        </div><!-- end scroll area -->
+
+        <!-- Input Area (fixed at bottom of mainArea) -->
+        <div class="border-t border-gray-200 bg-gray-50 px-4 py-3">
+            <form id="messageForm" class="flex flex-col space-y-2" onsubmit="sendMessage(event)">
+                <div class="flex items-center space-x-2">
+                    <input id="messageInput" type="text" placeholder="Type your message..."
+                        class="flex-1 px-4 py-2 rounded-l-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button type="button" id="attachBtn" onclick="showAttachMenu(event)" title="Attach file"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <button type="button" id="micBtn" onclick="openVoiceOverlay()" title="Open voice chat"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-full">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button type="submit"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-full transition">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                    <input id="fileInput" type="file"
+                        accept="image/*,application/pdf,text/*,.md,.js,.py,.java,.c,.cpp,.html,.css"
+                        aria-label="File input" onchange="handleFileInputChange(event)" class="hidden">
+                </div>
+                <div id="attachMenu" class="hidden absolute z-50 bg-white shadow rounded-md py-2 w-44">
+                    <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                        onclick="chooseAttachType('image')">
+                        <i class="fas fa-image mr-2 text-gray-600"></i> Upload Image
+                    </button>
+                    <button type="button" class="w-full text-left px-3 py-2 hover:bg-gray-100"
+                        onclick="chooseAttachType('document')">
+                        <i class="fas fa-file-alt mr-2 text-gray-600"></i> Upload Document
+                    </button>
+                    <button type="button" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
+                        onclick="hideAttachMenu()">Cancel</button>
+                </div>
+                <div id="filePreview" class="pl-2"></div>
+            </form>
+        </div>
+
+    </div><!-- end mainArea -->
 
 
     <script>
@@ -254,6 +332,96 @@
         const API_SPEECH_PROXY = '/api/speech';
         const API_HISTORY      = '/api/history';
 
+        // ── Sidebar & session management ─────────────────────────────
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        }
+
+        async function loadSessions() {
+            try {
+                const res = await fetch('/api/sessions');
+                if (!res.ok) return;
+                const data = await res.json();
+                const sessions = data?.sessions || [];
+                const list = document.getElementById('sidebarList');
+                if (!sessions.length) {
+                    list.innerHTML = '<div class="text-gray-500 text-xs px-2 py-4 text-center">No chats yet</div>';
+                    return;
+                }
+                // Get active chatId from cookie
+                const activeChatId = getCookie('tabu_chat_id');
+                list.innerHTML = sessions.map(s => `
+                    <div class="chat-item ${s.sessionId === activeChatId ? 'active' : ''}"
+                         onclick="switchChat('${s.sessionId}')"
+                         data-id="${s.sessionId}">
+                        <span class="chat-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title || 'New Chat')}</span>
+                        <button class="chat-item-delete" onclick="deleteChat(event,'${s.sessionId}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.warn('Could not load sessions:', err);
+            }
+        }
+
+        function getCookie(name) {
+            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith(name + '='))?.split('=')[1] || '';
+        }
+
+        async function newChat() {
+            try {
+                const res = await fetch('/api/sessions/new', { method: 'POST' });
+                const data = await res.json();
+                if (data.chatId) {
+                    // Clear UI
+                    document.getElementById('chatContainer').innerHTML = `
+                        <div class="message-appear flex items-start mb-4">
+                            <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                                <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                                <p>HELLO! how can i assist you?</p>
+                            </div>
+                        </div>`;
+                    document.getElementById('activeChatTitle').textContent = 'New Chat';
+                    await loadSessions();
+                }
+            } catch (err) {
+                console.error('newChat error:', err);
+            }
+        }
+
+        async function switchChat(chatId) {
+            try {
+                const res = await fetch('/api/sessions/switch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId })
+                });
+                if (!res.ok) return;
+                // Reload history for this chat
+                await loadHistory();
+                await loadSessions();
+            } catch (err) {
+                console.error('switchChat error:', err);
+            }
+        }
+
+        async function deleteChat(e, chatId) {
+            e.stopPropagation();
+            if (!confirm('Delete this chat?')) return;
+            try {
+                await fetch(`/api/sessions/${chatId}`, { method: 'DELETE' });
+                // If deleting active chat, start new one
+                if (getCookie('tabu_chat_id') === chatId) {
+                    await newChat();
+                } else {
+                    await loadSessions();
+                }
+            } catch (err) {
+                console.error('deleteChat error:', err);
+            }
+        }
+
         // ── Load chat history from MongoDB on page load ──────────────
         async function loadHistory() {
             try {
@@ -261,12 +429,25 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 const messages = data?.messages || [];
-                if (!messages.length) return;
                 const chatContainer = document.getElementById('chatContainer');
-                chatContainer.innerHTML = ''; // clear welcome message
-                messages.forEach(m => {
-                    addMessage(m.role, m.content, false, '');
-                });
+                chatContainer.innerHTML = '';
+                if (!messages.length) {
+                    chatContainer.innerHTML = `
+                        <div class="message-appear flex items-start mb-4">
+                            <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                                <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                                <p>HELLO! how can i assist you?</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+                messages.forEach(m => addMessage(m.role, m.content, false, ''));
+                // Update header title from first user message
+                const firstUser = messages.find(m => m.role === 'user');
+                if (firstUser) {
+                    document.getElementById('activeChatTitle').textContent =
+                        firstUser.content.replace(/\[Image\]|\[Voice\]/g,'').trim().slice(0, 40);
+                }
             } catch (err) {
                 console.warn('Could not load history:', err);
             }
@@ -274,9 +455,17 @@
 
         // ── Clear chat + MongoDB history ─────────────────────────────
         async function clearChat() {
+            if (!confirm('Clear this chat?')) return;
             try { await fetch('/api/history', { method: 'DELETE' }); } catch (e) {}
-            document.getElementById('chatContainer').innerHTML = '';
-            addMessage('assistant', "Chat cleared! Ready for new messages.");
+            document.getElementById('chatContainer').innerHTML = `
+                <div class="message-appear flex items-start mb-4">
+                    <div class="bg-blue-100 p-3 rounded-xl rounded-tl-none max-w-3xl">
+                        <div class="font-medium text-blue-600 mb-1">TABU AI</div>
+                        <p>Chat cleared! Ready for new messages.</p>
+                    </div>
+                </div>`;
+            document.getElementById('activeChatTitle').textContent = 'New Chat';
+            await loadSessions();
         }
 
         // Escape HTML for safe innerHTML insertion
@@ -767,10 +956,11 @@
             document.getElementById('tempValue').textContent = this.value;
         });
 
-        // Initialize — load chat history from MongoDB
+        // Initialize — load chat history and sessions from MongoDB
         document.addEventListener('DOMContentLoaded', function () {
             console.log('TABU AI initialized');
             loadHistory();
+            loadSessions();
         });
 
         // ------------------------------

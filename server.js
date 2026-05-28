@@ -36,6 +36,8 @@ async function connectMongo() {
 
     const sessionSchema = new mongoose.Schema({
       sessionId: { type: String, required: true, unique: true, index: true },
+      userId:    { type: String, required: true, index: true }, // cookie-based user ID
+      title:     { type: String, default: 'New Chat' },
       messages:  [messageSchema],
       createdAt: { type: Date, default: Date.now },
       updatedAt: { type: Date, default: Date.now }
@@ -54,45 +56,64 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
 // ── Session middleware ────────────────────────────────────────
+// userId = permanent cookie identifying the browser (never changes)
+// chatId  = active chat session (changes when user starts a new chat)
 app.use((req, res, next) => {
-  let sid = req.cookies?.tabu_session_id;
-  if (!sid) {
-    sid = uuidv4();
-    res.cookie('tabu_session_id', sid, {
+  // Permanent user ID
+  let userId = req.cookies?.tabu_user_id;
+  if (!userId) {
+    userId = uuidv4();
+    res.cookie('tabu_user_id', userId, {
       maxAge: 365 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: 'lax'
     });
   }
-  req.sessionId = sid;
+  req.userId = userId;
+
+  // Active chat ID (can be switched by client)
+  let chatId = req.cookies?.tabu_chat_id;
+  if (!chatId) {
+    chatId = uuidv4();
+    res.cookie('tabu_chat_id', chatId, {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: false, // readable by JS so client can switch chats
+      sameSite: 'lax'
+    });
+  }
+  req.sessionId = chatId;
   next();
 });
 
 // ── DB helpers ────────────────────────────────────────────────
-async function getSession(sessionId) {
+async function getSession(sessionId, userId) {
   if (!Session) return null;
   let session = await Session.findOne({ sessionId });
-  if (!session) session = await Session.create({ sessionId, messages: [] });
+  if (!session) session = await Session.create({ sessionId, userId: userId || 'unknown', title: 'New Chat', messages: [] });
   return session;
 }
 
-async function saveMessages(sessionId, userMsg, assistantMsg, type = 'text') {
+async function saveMessages(sessionId, userId, userMsg, assistantMsg, type = 'text') {
   if (!Session) return;
-  await Session.findOneAndUpdate(
-    { sessionId },
-    {
-      $push: {
-        messages: {
-          $each: [
-            { role: 'user',      content: userMsg,      type, timestamp: new Date() },
-            { role: 'assistant', content: assistantMsg, type, timestamp: new Date() }
-          ]
-        }
-      },
-      $set: { updatedAt: new Date() }
+  // Auto-title: use first user message (truncated) as chat title
+  const session = await Session.findOne({ sessionId });
+  const isFirst = !session || session.messages.length === 0;
+  const title = isFirst ? userMsg.replace(/\[Image\]|\[Voice\]/g, '').trim().slice(0, 50) : undefined;
+
+  const update = {
+    $push: {
+      messages: {
+        $each: [
+          { role: 'user',      content: userMsg,      type, timestamp: new Date() },
+          { role: 'assistant', content: assistantMsg, type, timestamp: new Date() }
+        ]
+      }
     },
-    { upsert: true }
-  );
+    $set: { updatedAt: new Date(), userId }
+  };
+  if (title) update.$set.title = title;
+
+  await Session.findOneAndUpdate({ sessionId }, update, { upsert: true });
 }
 
 // ── Routes ────────────────────────────────────────────────────
@@ -100,31 +121,79 @@ async function saveMessages(sessionId, userMsg, assistantMsg, type = 'text') {
 // Serve index.html
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// GET /api/history
-app.get('/api/history', async (req, res) => {
+// GET /api/sessions — list all chats for this user
+app.get('/api/sessions', async (req, res) => {
   try {
     await connectMongo();
-    const session = await getSession(req.sessionId);
-    const messages = session ? session.messages.slice(-100) : [];
-    res.json({ messages });
+    if (!Session) return res.json({ sessions: [] });
+    const sessions = await Session.find({ userId: req.userId })
+      .select('sessionId title updatedAt createdAt')
+      .sort({ updatedAt: -1 })
+      .limit(50);
+    res.json({ sessions });
   } catch (err) {
-    console.error('History error:', err);
+    console.error('Sessions error:', err);
     res.status(500).json({ error: String(err) });
   }
 });
 
-// DELETE /api/history
-app.delete('/api/history', async (req, res) => {
+// POST /api/sessions/new — create a new chat session
+app.post('/api/sessions/new', async (req, res) => {
+  try {
+    const newChatId = uuidv4();
+    res.cookie('tabu_chat_id', newChatId, {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: false,
+      sameSite: 'lax'
+    });
+    res.json({ chatId: newChatId });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/sessions/switch — switch to an existing chat
+app.post('/api/sessions/switch', async (req, res) => {
+  try {
+    const { chatId } = req.body || {};
+    if (!chatId) return res.status(400).json({ error: 'chatId required' });
+    // Verify this chat belongs to this user
+    await connectMongo();
+    const session = Session ? await Session.findOne({ sessionId: chatId, userId: req.userId }) : null;
+    if (!session) return res.status(403).json({ error: 'Chat not found' });
+    res.cookie('tabu_chat_id', chatId, {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: false,
+      sameSite: 'lax'
+    });
+    res.json({ ok: true, chatId });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// DELETE /api/sessions/:chatId — delete a specific chat
+app.delete('/api/sessions/:chatId', async (req, res) => {
   try {
     await connectMongo();
     if (Session) {
-      await Session.findOneAndUpdate(
-        { sessionId: req.sessionId },
-        { $set: { messages: [], updatedAt: new Date() } }
-      );
+      await Session.deleteOne({ sessionId: req.params.chatId, userId: req.userId });
     }
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/history — load active chat messages
+app.get('/api/history', async (req, res) => {
+  try {
+    await connectMongo();
+    const session = await getSession(req.sessionId, req.userId);
+    const messages = session ? session.messages.slice(-100) : [];
+    res.json({ messages });
+  } catch (err) {
+    console.error('History error:', err);
     res.status(500).json({ error: String(err) });
   }
 });
@@ -138,7 +207,7 @@ app.post('/api/chat', async (req, res) => {
     if (!message) return res.status(400).json({ error: 'message required' });
 
     await connectMongo();
-    const session = await getSession(req.sessionId);
+    const session = await getSession(req.sessionId, req.userId);
     const history = session ? session.messages.slice(-20) : [];
 
     const messages = [
@@ -173,7 +242,7 @@ app.post('/api/chat', async (req, res) => {
     const data = JSON.parse(raw);
     const aiText = data?.choices?.[0]?.message?.content || '';
 
-    await saveMessages(req.sessionId, message, aiText, 'text');
+    await saveMessages(req.sessionId, req.userId, message, aiText, 'text');
     res.json({ text: aiText });
   } catch (err) {
     console.error('Chat error:', err);
@@ -220,7 +289,7 @@ app.post('/api/vision', async (req, res) => {
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     await connectMongo();
-    await saveMessages(req.sessionId, `[Image] ${prompt}`, aiText, 'image');
+    await saveMessages(req.sessionId, req.userId, `[Image] ${prompt}`, aiText, 'image');
     res.json({ text: aiText });
   } catch (err) {
     console.error('Vision error:', err);
@@ -237,7 +306,7 @@ app.post('/api/speech', async (req, res) => {
     if (!transcript) return res.status(400).json({ error: 'transcript required' });
 
     await connectMongo();
-    const session = await getSession(req.sessionId);
+    const session = await getSession(req.sessionId, req.userId);
     const history = session ? session.messages.slice(-10) : [];
     const contextText = history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
     const prompt = contextText ? `${contextText}\n\nUser: ${transcript}\n\nAssistant:` : transcript;
@@ -266,7 +335,7 @@ app.post('/api/speech', async (req, res) => {
     const data = JSON.parse(raw);
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    await saveMessages(req.sessionId, `[Voice] ${transcript}`, aiText, 'voice');
+    await saveMessages(req.sessionId, req.userId, `[Voice] ${transcript}`, aiText, 'voice');
     res.json({ text: aiText });
   } catch (err) {
     console.error('Speech error:', err);
@@ -274,7 +343,7 @@ app.post('/api/speech', async (req, res) => {
   }
 });
 
-// Only listen when running locally (not on Vercel)
+// Only listen locally
 if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
   app.listen(PORT, () => console.log(`TABU AI running: http://localhost:${PORT}`));
 }
