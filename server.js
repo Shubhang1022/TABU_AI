@@ -23,7 +23,11 @@ let Session = null;
 async function connectMongo() {
   if (mongoConnected || !MONGO_URI) return;
   try {
-    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 30000
+    });
     mongoConnected = true;
     console.log('MongoDB connected');
 
