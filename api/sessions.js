@@ -1,0 +1,54 @@
+const { connectDB } = require('./_db');
+const { getOrCreateIds, setCookie } = require('./_cookies');
+const { v4: uuidv4 } = require('uuid');
+
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { userId, chatId } = getOrCreateIds(req, res);
+  const url = req.url || '';
+
+  try {
+    const { Session } = await connectDB();
+
+    // GET /api/sessions — list all chats
+    if (req.method === 'GET') {
+      const sessions = await Session.find({ userId })
+        .select('sessionId title updatedAt createdAt')
+        .sort({ updatedAt: -1 })
+        .limit(50);
+      return res.json({ sessions });
+    }
+
+    // POST /api/sessions/new
+    if (req.method === 'POST' && url.includes('new')) {
+      const newChatId = uuidv4();
+      setCookie(res, 'tabu_chat_id', newChatId, { httpOnly: false });
+      return res.json({ chatId: newChatId });
+    }
+
+    // POST /api/sessions/switch
+    if (req.method === 'POST' && url.includes('switch')) {
+      const { chatId: targetId } = req.body || {};
+      if (!targetId) return res.status(400).json({ error: 'chatId required' });
+      const session = await Session.findOne({ sessionId: targetId, userId });
+      if (!session) return res.status(403).json({ error: 'Chat not found' });
+      setCookie(res, 'tabu_chat_id', targetId, { httpOnly: false });
+      return res.json({ ok: true, chatId: targetId });
+    }
+
+    // DELETE /api/sessions/:chatId
+    if (req.method === 'DELETE') {
+      const parts = url.split('/').filter(Boolean);
+      const targetId = parts[parts.length - 1];
+      if (targetId && targetId !== 'sessions') {
+        await Session.deleteOne({ sessionId: targetId, userId });
+        return res.json({ ok: true });
+      }
+    }
+
+    res.status(405).json({ error: 'Method not allowed' });
+  } catch (err) {
+    console.error('sessions error:', err);
+    res.status(500).json({ error: String(err) });
+  }
+};
