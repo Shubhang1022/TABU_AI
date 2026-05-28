@@ -43,18 +43,18 @@ module.exports = async (req, res) => {
     const data = JSON.parse(raw);
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Save to DB
-    const { Session } = await connectDB();
-    await Session.findOneAndUpdate(
+    const sessions = await connectDB();
+    await sessions.updateOne(
       { sessionId: chatId },
       {
         $push: { messages: { $each: [
           { role: 'user', content: `[Image] ${prompt}`, type: 'image', timestamp: new Date() },
           { role: 'assistant', content: aiText, type: 'image', timestamp: new Date() }
         ]}},
-        $set: { updatedAt: new Date(), userId }
+        $set: { updatedAt: new Date(), userId },
+        $setOnInsert: { sessionId: chatId, createdAt: new Date(), title: `[Image] ${prompt}`.slice(0, 50) }
       },
-      { upsert: true, setDefaultsOnInsert: true }
+      { upsert: true }
     );
 
     res.json({ text: aiText });

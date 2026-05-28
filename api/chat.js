@@ -17,12 +17,11 @@ module.exports = async (req, res) => {
   if (!message) return res.status(400).json({ error: 'message required' });
 
   try {
-    const { Session } = await connectDB();
+    const sessions = await connectDB();
 
     // Load history
-    let session = await Session.findOne({ sessionId: chatId });
-    if (!session) session = await Session.create({ sessionId: chatId, userId, title: 'New Chat', messages: [] });
-    const history = session.messages.slice(-20);
+    const session = await sessions.findOne({ sessionId: chatId });
+    const history = session ? session.messages.slice(-20) : [];
 
     // Build Gemini contents
     const contents = [
@@ -54,17 +53,20 @@ module.exports = async (req, res) => {
     const data = JSON.parse(raw);
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Save messages + auto-title
-    const isFirst = session.messages.length === 0;
-    const update = {
-      $push: { messages: { $each: [
-        { role: 'user', content: message, type: 'text', timestamp: new Date() },
-        { role: 'assistant', content: aiText, type: 'text', timestamp: new Date() }
-      ]}},
-      $set: { updatedAt: new Date(), userId }
-    };
-    if (isFirst) update.$set.title = message.slice(0, 50);
-    await Session.findOneAndUpdate({ sessionId: chatId }, update, { upsert: true });
+    // Save messages
+    const isFirst = !session || session.messages.length === 0;
+    await sessions.updateOne(
+      { sessionId: chatId },
+      {
+        $push: { messages: { $each: [
+          { role: 'user', content: message, type: 'text', timestamp: new Date() },
+          { role: 'assistant', content: aiText, type: 'text', timestamp: new Date() }
+        ]}},
+        $set: { updatedAt: new Date(), userId, ...(isFirst ? { title: message.slice(0, 50) } : {}) },
+        $setOnInsert: { sessionId: chatId, createdAt: new Date() }
+      },
+      { upsert: true }
+    );
 
     res.json({ text: aiText });
   } catch (err) {

@@ -17,8 +17,8 @@ module.exports = async (req, res) => {
   if (!transcript) return res.status(400).json({ error: 'transcript required' });
 
   try {
-    const { Session } = await connectDB();
-    let session = await Session.findOne({ sessionId: chatId });
+    const sessions = await connectDB();
+    const session = await sessions.findOne({ sessionId: chatId });
     const history = session ? session.messages.slice(-10) : [];
     const contextText = history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
     const prompt = contextText ? `${contextText}\n\nUser: ${transcript}\n\nAssistant:` : transcript;
@@ -44,16 +44,17 @@ module.exports = async (req, res) => {
     const data = JSON.parse(raw);
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    await Session.findOneAndUpdate(
+    await sessions.updateOne(
       { sessionId: chatId },
       {
         $push: { messages: { $each: [
           { role: 'user', content: `[Voice] ${transcript}`, type: 'voice', timestamp: new Date() },
           { role: 'assistant', content: aiText, type: 'voice', timestamp: new Date() }
         ]}},
-        $set: { updatedAt: new Date(), userId }
+        $set: { updatedAt: new Date(), userId },
+        $setOnInsert: { sessionId: chatId, createdAt: new Date(), title: transcript.slice(0, 50) }
       },
-      { upsert: true, setDefaultsOnInsert: true }
+      { upsert: true }
     );
 
     res.json({ text: aiText });
